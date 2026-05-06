@@ -79,7 +79,7 @@ services:
   - type: web
     name: chief-of-staff-web
     runtime: static
-    plan: professional
+    plan: starter
     rootDir: client
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
