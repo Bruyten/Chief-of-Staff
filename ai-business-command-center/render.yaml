@@ -14,7 +14,7 @@ services:
   - type: web
     name: chief-of-staff-api
     runtime: node
-    plan: free
+    plan: profesional
     rootDir: server
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && npm start
