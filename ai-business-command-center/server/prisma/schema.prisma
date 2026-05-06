@@ -1,0 +1,138 @@
+// =========================================================================
+//  Chief of Staff — Prisma schema
+//  Five core tables matching the Architecture spec from prompt #3.
+// =========================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- USER ----------
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+
+  // Plan + usage
+  plan         String   @default("free")    // free | starter | pro | agency
+  credits      Int      @default(5)         // remaining this period
+  creditsMax   Int      @default(5)         // ceiling for the plan
+
+  // Stripe linkage (nullable = never paid)
+  stripeCustomerId String? @unique
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projects     Project[]
+  outputs      Output[]
+  tasks        Task[]
+  subscription Subscription?
+}
+
+// ---------- SUBSCRIPTION (one row per user, mirrors Stripe state) ----------
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  stripeSubscriptionId String   @unique
+  stripePriceId        String
+  plan                 String                              // starter | pro | agency
+  status               String                              // active | trialing | past_due | canceled | incomplete | unpaid
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([stripeSubscriptionId])
+}
+
+// ---------- PROJECT ----------
+model Project {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  niche      String?
+  brandVoice String?
+  emoji      String?  @default("✨")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+  outputs  Output[]
+  tasks    Task[]
+
+  @@index([userId])
+}
+
+// ---------- PRODUCT ----------
+model Product {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String
+  audience    String?
+  painPoint   String?
+  benefits    String?
+  price       String?
+  offerType   String?   // course | digital_product | affiliate | service | coaching | physical | subscription
+  cta         String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outputs Output[]
+
+  @@index([projectId])
+}
+
+// ---------- OUTPUT (saved library entries) ----------
+model Output {
+  id            String   @id @default(cuid())
+  userId        String
+  projectId     String?
+  productId     String?
+  type          String                 // tiktok_script | caption | email_sequence | …
+  title         String
+  content       String                 // markdown
+  inputSnapshot Json                   // copy of intake form for re-runs
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId])
+}
+
+// ---------- TASK (every AI run, success or fail) ----------
+model Task {
+  id          String    @id @default(cuid())
+  userId      String
+  projectId   String?
+  type        String
+  status      String    @default("running")   // running | done | failed
+  input       Json
+  result      Json?
+  tokensUsed  Int       @default(0)
+  errorMsg    String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}

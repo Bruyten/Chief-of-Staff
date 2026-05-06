@@ -1,0 +1,109 @@
+# Chief of Staff — Render Blueprint
+# Provisions: Postgres database + Express API web service + React static site.
+# After this is in your repo: Render dashboard → New + → Blueprint → connect repo.
+# Render reads this file and creates everything automatically.
+
+databases:
+  - name: chief-of-staff-db
+    plan: free
+    databaseName: chief
+    user: chief
+
+services:
+  # ----------------- Backend (Express API) -----------------
+  - type: web
+    name: chief-of-staff-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /health
+    envVars:
+      # Auto-injected from the database
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chief-of-staff-db
+          property: connectionString
+
+      # Required secrets — set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true            # Render auto-generates a strong value on first deploy
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      # AI — defaults to FAKE_AI mode so the app boots without an OpenAI key
+      - key: FAKE_AI
+        value: "true"
+      - key: OPENAI_API_KEY
+        sync: false                    # set manually when ready (leave blank for FAKE_AI)
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+      # Stripe — defaults to FAKE_STRIPE mode so the app boots without a Stripe account
+      - key: FAKE_STRIPE
+        value: "true"
+      - key: STRIPE_SECRET_KEY
+        sync: false                    # set manually when ready
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false                    # set manually when ready
+      - key: STRIPE_PRICE_STARTER
+        sync: false                    # set after creating Stripe products
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_PRICE_AGENCY
+        sync: false
+
+      # CORS + redirect URLs — auto-wired to the frontend service
+      - key: CLIENT_ORIGIN
+        fromService:
+          type: web
+          name: chief-of-staff-web
+          property: hostport            # https://chief-of-staff-web.onrender.com
+      - key: BILLING_SUCCESS_URL
+        fromService:
+          type: web
+          name: chief-of-staff-web
+          property: hostport
+      - key: BILLING_CANCEL_URL
+        fromService:
+          type: web
+          name: chief-of-staff-web
+          property: hostport
+
+      # Misc
+      - key: NODE_ENV
+        value: production
+
+  # ----------------- Frontend (React static site) -----------------
+  - type: web
+    name: chief-of-staff-web
+    runtime: static
+    plan: free
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # Auto-wired to the API service URL — no manual setup needed
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: chief-of-staff-api
+          property: hostport            # https://chief-of-staff-api.onrender.com
+    routes:
+      # SPA fallback — every unknown route serves index.html so client routing works
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # Light security headers
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
