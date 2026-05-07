@@ -6,11 +6,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { ChatMessage } from "./aiClient.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROMPTS_DIR = path.resolve(__dirname, "../prompts");
+const PROMPTS_DIR = path.resolve(process.cwd(), "src/prompts");
 
 let cachedSystem: string | null = null;
 function loadSystemPrompt(): string {
