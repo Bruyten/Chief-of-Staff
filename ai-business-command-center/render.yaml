@@ -51,23 +51,16 @@ services:
         sync: false
       - key: STRIPE_PRICE_AGENCY
         sync: false
+     # CORS + redirect URLs
+     - key: CLIENT_ORIGIN
+       value: https://chief-of-staff-web.onrender.com
 
-      # CORS + redirect URLs — auto-wired to the frontend service
-      - key: CLIENT_ORIGIN
-        fromService:
-          type: web
-          name: chief-of-staff-web
-          property: hostport            # https://chief-of-staff-web.onrender.com
-      - key: BILLING_SUCCESS_URL
-        fromService:
-          type: web
-          name: chief-of-staff-web
-          property: hostport
-      - key: BILLING_CANCEL_URL
-        fromService:
-          type: web
-          name: chief-of-staff-web
-          property: hostport
+     - key: BILLING_SUCCESS_URL
+       value: https://chief-of-staff-web.onrender.com/billing/success
+
+     - key: BILLING_CANCEL_URL
+       value: https://chief-of-staff-web.onrender.com/pricing
+     
 
       # Misc
       - key: NODE_ENV
