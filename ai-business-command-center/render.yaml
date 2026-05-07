@@ -38,7 +38,7 @@ services:
   - type: web
     name: chief-of-staff-web
     runtime: static
-    rootDir: ai-business-command-center/client
+    rootDir: ai-business-command-center
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     pullRequestPreviewsEnabled: false
