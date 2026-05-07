@@ -13,7 +13,7 @@ services:
   - type: web
     name: chief-of-staff-api
     runtime: node
-    rootDir: server
+    rootDir: ai-business-command-center/server
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && npm start
     healthCheckPath: /health
@@ -77,7 +77,7 @@ services:
   - type: web
     name: chief-of-staff-web
     runtime: static
-    rootDir: client
+    rootDir: ai-business-command-center/client
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     pullRequestPreviewsEnabled: false
