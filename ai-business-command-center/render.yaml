@@ -37,7 +37,7 @@ services:
       - key: OPENAI_MODEL
         value: gpt-4o-mini
 
-      # Stripe — defaults to FAKE_STRIPE mode so the app boots without a Stripe account
+      # Stripe — defaults to FAKE_STRIPE mode so the app boots
       - key: FAKE_STRIPE
         value: "true"
       - key: STRIPE_SECRET_KEY
