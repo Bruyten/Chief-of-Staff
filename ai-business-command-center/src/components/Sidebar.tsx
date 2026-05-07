@@ -124,7 +124,7 @@ export default function Sidebar(props: Props) {
 
       <div className="px-3 pt-4">
         <div className="grid grid-cols-6 gap-1 p-1 bg-white/5 rounded-lg">
-          {tabs.slice(0, 6).map((tab) => (
+          {false && tabs.slice(0, 6).map((tab) => (
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
@@ -138,7 +138,7 @@ export default function Sidebar(props: Props) {
           ))}
         </div>
         <div className="grid grid-cols-6 gap-1 p-1 bg-white/5 rounded-lg mt-1">
-          {tabs.slice(6).map((tab) => (
+          {tabs.slice(6).filter((tab) => tab.id === "dashboard").map((tab) => (
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
