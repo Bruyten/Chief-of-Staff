@@ -25,7 +25,7 @@ import { INTEGRATIONS, RANKED, type IntegrationId } from "./data/integrations";
 import { agentSpec } from "./data/agent";
 
 export default function App() {
-  const [view, setView] = useState<View>("agent");
+  const [view, setView] = useState<View>("dashboard");
   const [activeBlueprintSection, setActiveBlueprintSection] = useState<string>("mvp");
   const [activeMvpSection, setActiveMvpSection] = useState<string>("smallest");
   const [activeArchSection, setActiveArchSection] = useState<string>("stack");
