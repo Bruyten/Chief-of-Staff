@@ -2,7 +2,6 @@
 # Provisions: Postgres database + Express API web service + React static site.
 # After this is in your repo: Render dashboard → New + → Blueprint → connect repo.
 # Render reads this file and creates everything automatically.
-
 databases:
   - name: chief-of-staff-db
     databaseName: chief
@@ -17,6 +16,7 @@ services:
     startCommand: npx prisma migrate deploy && npm start
     healthCheckPath: /health
     envVars:
+
       # Auto-injected from the database
       - key: DATABASE_URL
         fromDatabase:
