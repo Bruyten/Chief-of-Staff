@@ -9,7 +9,7 @@ databases:
     user: chief
 
 services:
-  # ----------------- Backend (Express API) -----------------
+ 
   - type: web
     name: chief-of-staff-api
     runtime: node
@@ -66,7 +66,7 @@ services:
       - key: NODE_ENV
         value: production
 
-  # ----------------- Frontend (React static site) -----------------
+
   - type: web
     name: chief-of-staff-web
     runtime: static
