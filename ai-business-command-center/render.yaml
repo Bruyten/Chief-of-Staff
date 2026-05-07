@@ -35,8 +35,9 @@ services:
       - key: NODE_ENV
         value: production
 
-  - type: static
+  - type: web
     name: chief-of-staff-web
+    runtime: static
     rootDir: ai-business-command-center/client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
