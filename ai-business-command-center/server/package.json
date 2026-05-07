@@ -2,6 +2,7 @@
   "name": "chief-of-staff-server",
   "version": "0.1.0",
   "private": true,
+  "type": "commonjs",
   "description": "AI Marketing Assistant — Express + Prisma + OpenAI backend",
   "main": "dist/index.js",
   "scripts": {
