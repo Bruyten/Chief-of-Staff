@@ -9,7 +9,6 @@ databases:
     user: chief
 
 services:
- 
   - type: web
     name: chief-of-staff-api
     runtime: node
