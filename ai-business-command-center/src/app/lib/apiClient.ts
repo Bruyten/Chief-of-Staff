@@ -7,7 +7,7 @@
 // (which is what render.yaml's static-site rewrites assume).
 const BASE_URL =
   (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ||
-  "http://localhost:4000";
+  "http://cheif-of-staff-api-2687.onrender.com";
 
 export type ApiError = {
   status: number;
