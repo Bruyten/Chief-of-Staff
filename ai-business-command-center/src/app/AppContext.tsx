@@ -283,29 +283,88 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOutputs((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   }, [mode]);
 
-  const createProject = useCallback<AppContextShape["createProject"]>(async (data) => {
-    if (mode === "mock") {
-      const p: MockProject = {
-        id: `p_${Date.now()}`,
-        name: data.name,
-        niche: data.niche,
-        emoji: data.emoji ?? "✨",
-        productCount: 0,
-        outputCount: 0,
-        createdAt: new Date().toISOString(),
-      };
-      setProjects((prev) => [p, ...prev]);
-      return p;
-    }
-    const { project } = await projectsApi.create({
+const createProject = useCallback<AppContextShape["createProject"]>(async (data) => {
+  if (mode === "mock") {
+    const p: MockProject = {
+      id: `p_${Date.now()}`,
       name: data.name,
       niche: data.niche,
-      emoji: data.emoji,
-    });
-    const mapped = toMockProject({ ...project, productCount: 0, outputCount: 0 });
-    setProjects((prev) => [mapped, ...prev]);
-    return mapped;
-  }, [mode]);
+      emoji: data.emoji ?? "✨",
+      productCount: 0,
+      outputCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    setProjects((prev) => [p, ...prev]);
+    return p;
+  }
+  const { project } = await projectsApi.create({
+    name: data.name,
+    niche: data.niche,
+    emoji: data.emoji,
+  });
+  const mapped = toMockProject({ ...project, productCount: 0, outputCount: 0 });
+  setProjects((prev) => [mapped, ...prev]);
+  return mapped;
+}, [mode]);
+
+const createProduct = useCallback<AppContextShape["createProduct"]>(
+  async (projectId, data) => {
+    if (mode === "mock") {
+      const product: MockProduct = {
+        id: `pr_${Date.now()}`,
+        projectId,
+        name: data.name,
+        description: data.description,
+        audience: data.audience ?? "",
+        painPoint: data.painPoint ?? "",
+        benefits: data.benefits ?? "",
+        price: data.price ?? "",
+        offerType: data.offerType ?? "",
+        cta: data.cta ?? "",
+      };
+
+      setProducts((prev) => [product, ...prev]);
+
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === projectId
+            ? { ...p, productCount: (p.productCount ?? 0) + 1 }
+            : p
+        )
+      );
+
+      return product;
+    }
+
+    const { product } = await productsApi.create(projectId, data);
+
+    const mappedProduct: MockProduct = {
+      id: product.id,
+      projectId: product.projectId,
+      name: product.name,
+      description: product.description,
+      audience: product.audience ?? "",
+      painPoint: product.painPoint ?? "",
+      benefits: product.benefits ?? "",
+      price: product.price ?? "",
+      offerType: product.offerType ?? "",
+      cta: product.cta ?? "",
+    };
+
+    setProducts((prev) => [mappedProduct, ...prev]);
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId
+          ? { ...p, productCount: (p.productCount ?? 0) + 1 }
+          : p
+      )
+    );
+
+    return mappedProduct;
+  },
+  [mode]
+);
 
   // ---------- AI generation ----------
   const runGeneration = useCallback<AppContextShape["runGeneration"]>(async (skill, projectId, context) => {
