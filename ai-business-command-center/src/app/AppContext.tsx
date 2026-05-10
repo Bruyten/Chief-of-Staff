@@ -395,7 +395,7 @@ const createProduct = useCallback<AppContextShape["createProduct"]>(
       loginWith, signupWith, logout, refreshUser, upgradePlanLocal,
       projects, products, outputs,
       loadingData, refetchAll,
-      saveOutput, updateOutput, deleteOutput, createProject,
+      saveOutput, updateOutput, deleteOutput, createProject, createProduct
       runGeneration,
       draft, setDraft,
       toasts, toast,
@@ -404,7 +404,7 @@ const createProduct = useCallback<AppContextShape["createProduct"]>(
       page, navigate, params, mode, setMode, isAuthed, user,
       loginWith, signupWith, logout, refreshUser, upgradePlanLocal,
       projects, products, outputs, loadingData, refetchAll,
-      saveOutput, updateOutput, deleteOutput, createProject, runGeneration,
+      saveOutput, updateOutput, deleteOutput, createProject, createProduct, runGeneration,
       draft, toasts, toast,
     ]
   );
