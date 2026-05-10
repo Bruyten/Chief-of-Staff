@@ -70,8 +70,8 @@ const MODE_KEY = "cos_mode";
 function loadMode(): Mode {
   try {
     const v = localStorage.getItem(MODE_KEY);
-    return v === "live" ? "live" : "mock";
-  } catch { return "mock"; }
+    return v === "mock" ? "mock" : "live";
+  } catch { return "live"; }
 }
 
 // ---------- Adapters: live API → MockProject/MockOutput shapes ----------
