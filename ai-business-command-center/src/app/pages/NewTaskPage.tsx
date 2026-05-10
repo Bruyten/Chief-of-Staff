@@ -234,7 +234,7 @@ function buildInitialForm(templateId: string): Record<string, string> {
   if (!t) return {};
   const out: Record<string, string> = {};
   t.inputFields.forEach((f) => {
-    out[f.name] = f.example;
+    out[f.name] = "";
   });
   return out;
 }
