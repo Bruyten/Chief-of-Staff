@@ -2,12 +2,9 @@
 // All app pages talk to the backend through this file ONLY — so when we
 // later move from localhost to Render, we change one constant.
 
-// In dev, point at the local Express server. In production, Vite injects
-// VITE_API_URL at build time. If neither is set, fall back to same-origin
-// (which is what render.yaml's static-site rewrites assume).
 const BASE_URL =
-  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ||
-  "http://cheif-of-staff-api-2687.onrender.com";
+  (import.meta.env.PROD ? import.meta.env.VITE_API_URL : import.meta.env.VITE_API_URL) ||
+  "https://chief-of-staff-api-z687.onrender.com";
 
 export type ApiError = {
   status: number;
@@ -20,6 +17,7 @@ export class ApiException extends Error {
   status: number;
   code: string;
   fields?: Record<string, string[]>;
+
   constructor(err: ApiError) {
     super(err.message);
     this.status = err.status;
@@ -40,15 +38,16 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   const { method = "GET", body, signal } = opts;
 
   let res: Response;
+
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
-      credentials: "include",                      // send the JWT cookie
+      credentials: "include", // send the JWT cookie
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
       signal,
     });
-  } catch (e) {
+  } catch {
     // Network failure / CORS / server down
     throw new ApiException({
       status: 0,
@@ -62,12 +61,18 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
 
   let payload: unknown = null;
   const text = await res.text();
+
   if (text) {
-    try { payload = JSON.parse(text); } catch { /* leave null */ }
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      // leave null
+    }
   }
 
   if (!res.ok) {
     const errBody = (payload as { error?: Partial<ApiError> })?.error;
+
     throw new ApiException({
       status: res.status,
       code: errBody?.code ?? "ERROR",
@@ -101,6 +106,20 @@ export type Project = {
   createdAt: string;
 };
 
+export type Product = {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  audience?: string | null;
+  painPoint?: string | null;
+  benefits?: string | null;
+  price?: string | null;
+  offerType?: string | null;
+  cta?: string | null;
+  createdAt: string;
+};
+
 export type Output = {
   id: string;
   type: string;
@@ -116,24 +135,58 @@ export type GenerateResult = {
   taskId: string;
   skill: string;
   content: string;
-  meta: { model: string; tokensIn: number; tokensOut: number; latencyMs: number; fake: boolean };
+  meta: {
+    model: string;
+    tokensIn: number;
+    tokensOut: number;
+    latencyMs: number;
+    fake: boolean;
+  };
   creditsRemaining: number;
 };
 
 export const auth = {
   signup: (data: { email: string; password: string; name?: string }) =>
     api<{ user: User }>("/api/auth/signup", { method: "POST", body: data }),
+
   login: (data: { email: string; password: string }) =>
     api<{ user: User }>("/api/auth/login", { method: "POST", body: data }),
+
   logout: () => api<{ ok: true }>("/api/auth/logout", { method: "POST" }),
+
   me: () => api<{ user: User }>("/api/auth/me"),
 };
 
 export const projects = {
   list: () => api<{ projects: Project[] }>("/api/projects"),
+
   create: (data: { name: string; niche?: string; brandVoice?: string; emoji?: string }) =>
     api<{ project: Project }>("/api/projects", { method: "POST", body: data }),
+
   delete: (id: string) => api<{ ok: true }>(`/api/projects/${id}`, { method: "DELETE" }),
+};
+
+export const products = {
+  list: (projectId: string) =>
+    api<{ products: Product[] }>(`/api/projects/${projectId}/products`),
+
+  create: (
+    projectId: string,
+    data: {
+      name: string;
+      description: string;
+      audience?: string;
+      painPoint?: string;
+      benefits?: string;
+      price?: string;
+      offerType?: string;
+      cta?: string;
+    }
+  ) =>
+    api<{ product: Product }>(`/api/projects/${projectId}/products`, {
+      method: "POST",
+      body: data,
+    }),
 };
 
 export const outputs = {
@@ -142,13 +195,23 @@ export const outputs = {
     if (params?.projectId) q.set("projectId", params.projectId);
     if (params?.type) q.set("type", params.type);
     if (params?.search) q.set("search", params.search);
+
     const qs = q.toString();
+
     return api<{ outputs: Output[] }>(`/api/outputs${qs ? `?${qs}` : ""}`);
   },
-  create: (data: { projectId?: string; type: string; title: string; content: string; inputSnapshot?: Record<string, unknown> }) =>
-    api<{ output: Output }>("/api/outputs", { method: "POST", body: data }),
+
+  create: (data: {
+    projectId?: string;
+    type: string;
+    title: string;
+    content: string;
+    inputSnapshot?: Record<string, unknown>;
+  }) => api<{ output: Output }>("/api/outputs", { method: "POST", body: data }),
+
   update: (id: string, data: { title?: string; content?: string }) =>
     api<{ output: Output }>(`/api/outputs/${id}`, { method: "PATCH", body: data }),
+
   delete: (id: string) => api<{ ok: true }>(`/api/outputs/${id}`, { method: "DELETE" }),
 };
 
@@ -162,7 +225,8 @@ export const account = {
     api<{ user: User }>("/api/account/profile", { method: "PATCH", body: data }),
 };
 
-// ----- Billing -----
+// ---------- Billing ----------
+
 export type BillingPlan = {
   id: "free" | "starter" | "pro" | "agency";
   name: string;
@@ -176,37 +240,55 @@ export type BillingMe = {
   credits: number;
   creditsMax: number;
   hasStripeCustomer: boolean;
-  subscription: { status: string; cancelAtPeriodEnd: boolean; currentPeriodEnd: string } | null;
+  subscription: {
+    status: string;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: string | null;
+  } | null;
   fakeStripe: boolean;
 };
 
 export const billing = {
   plans: () => api<{ plans: BillingPlan[]; fakeStripe: boolean }>("/api/billing/plans"),
+
   me: () => api<BillingMe>("/api/billing/me"),
+
   checkout: (plan: "starter" | "pro" | "agency") =>
     api<{ url: string }>("/api/billing/checkout", { method: "POST", body: { plan } }),
+
   portal: () => api<{ url: string }>("/api/billing/portal", { method: "POST" }),
+
   // Fake-mode shortcuts
   simulateSuccess: (plan: "starter" | "pro" | "agency") =>
     api<{ ok: true }>("/api/billing/simulate-success", { method: "POST", body: { plan } }),
-  simulateCancel: () =>
-    api<{ ok: true }>("/api/billing/simulate-cancel", { method: "POST" }),
+
+  simulateCancel: () => api<{ ok: true }>("/api/billing/simulate-cancel", { method: "POST" }),
 };
 
 /** Friendly message for any ApiException, ready to drop in a toast. */
 export function friendlyError(e: unknown): string {
   if (e instanceof ApiException) {
     switch (e.code) {
-      case "NETWORK":         return "Can't reach the server. Is it running?";
-      case "VALIDATION":      return "Please check the highlighted fields.";
-      case "UNAUTHORIZED":    return "Your session expired. Please sign in again.";
-      case "OUT_OF_CREDITS":  return "You're out of credits this month.";
-      case "RATE_LIMITED":    return "Slow down — too many requests.";
-      case "FORBIDDEN":       return "You don't have access to that.";
-      case "NOT_FOUND":       return "We couldn't find that.";
-      case "CONFLICT":        return e.message;
-      default:                return e.message || "Something went wrong.";
+      case "NETWORK":
+        return "Can't reach the server. Is it running?";
+      case "VALIDATION":
+        return "Please check the highlighted fields.";
+      case "UNAUTHORIZED":
+        return "Your session expired. Please sign in again.";
+      case "OUT_OF_CREDITS":
+        return "You're out of credits this month.";
+      case "RATE_LIMITED":
+        return "Slow down — too many requests.";
+      case "FORBIDDEN":
+        return "You don't have access to that.";
+      case "NOT_FOUND":
+        return "We couldn't find that.";
+      case "CONFLICT":
+        return e.message;
+      default:
+        return e.message || "Something went wrong.";
     }
   }
+
   return "Unexpected error.";
 }
