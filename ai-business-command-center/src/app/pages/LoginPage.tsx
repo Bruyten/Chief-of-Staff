@@ -101,22 +101,6 @@ export function LoginPage() {
           </div>
         )}
 
-        <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-          <div className="text-[10px] uppercase tracking-widest text-white/40 font-semibold mb-2">
-            Backend mode
-          </div>
-    
-          <div className="text-[10.5px] text-white/40 mt-2 leading-relaxed">
-            {appMode === "mock" ? (
-              <>Any email/password works — uses local seed data.</>
-            ) : (
-              <>
-                Talks to <code className="text-emerald-300">localhost:4000</code>. Run the
-                server first: <code className="text-emerald-300">cd server && npm run dev</code>
-              </>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
