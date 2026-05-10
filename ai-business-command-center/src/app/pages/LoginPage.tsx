@@ -6,9 +6,9 @@ import { friendlyError } from "../lib/apiClient";
 export function LoginPage() {
   const { loginWith, signupWith, mode: appMode, setMode: setAppMode, toast } = useApp();
   const [mode, setMode] = useState<"login" | "signup">("signup");
-  const [email, setEmail] = useState(appMode === "live" ? "demo@chiefofstaff.app" : "you@chiefofstaff.app");
-  const [password, setPassword] = useState("demo1234");
-  const [name, setName] = useState("Demo User");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,26 +105,7 @@ export function LoginPage() {
           <div className="text-[10px] uppercase tracking-widest text-white/40 font-semibold mb-2">
             Backend mode
           </div>
-          <div className="grid grid-cols-2 gap-1 p-0.5 bg-white/[0.04] rounded-lg">
-            <button
-              onClick={() => setAppMode("mock")}
-              className={
-                "text-[11px] font-medium py-1.5 rounded-md transition " +
-                (appMode === "mock" ? "bg-white text-black" : "text-white/60 hover:text-white")
-              }
-            >
-              🧪 Mock data
-            </button>
-            <button
-              onClick={() => setAppMode("live")}
-              className={
-                "text-[11px] font-medium py-1.5 rounded-md transition " +
-                (appMode === "live" ? "bg-emerald-500 text-white" : "text-white/60 hover:text-white")
-              }
-            >
-              🟢 Live API
-            </button>
-          </div>
+    
           <div className="text-[10.5px] text-white/40 mt-2 leading-relaxed">
             {appMode === "mock" ? (
               <>Any email/password works — uses local seed data.</>
