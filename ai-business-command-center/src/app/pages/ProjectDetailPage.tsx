@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useApp } from "../AppContext";
 import { AppShell } from "../layout/AppShell";
 import { Badge, Button, Card, EmptyState } from "../ui/Primitives";
 import { outputTypeLabels } from "../mock/data";
 
 export function ProjectDetailPage() {
-  const { params, projects, products, outputs, navigate } = useApp();
+  const { params, projects, products, outputs, navigate, createProduct, toast } = useApp();
   const project = projects.find((p) => p.id === params.projectId);
 
   if (!project) {
