@@ -22,6 +22,62 @@ export function ProjectDetailPage() {
 
   const projectProducts = products.filter((p) => p.projectId === project.id);
   const projectOutputs = outputs.filter((o) => o.projectId === project.id);
+    const [productFormOpen, setProductFormOpen] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [productForm, setProductForm] = useState({
+    name: "",
+    description: "",
+    audience: "",
+    painPoint: "",
+    benefits: "",
+    price: "",
+    offerType: "digital_product",
+    cta: "",
+  });
+
+  function updateProductField(field: keyof typeof productForm, value: string) {
+    setProductForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleAddProduct() {
+    if (!productForm.name.trim() || !productForm.description.trim()) {
+      toast("Product name and description are required.", "danger");
+      return;
+    }
+
+    try {
+      setSavingProduct(true);
+
+      await createProduct(project.id, {
+        name: productForm.name.trim(),
+        description: productForm.description.trim(),
+        audience: productForm.audience.trim() || undefined,
+        painPoint: productForm.painPoint.trim() || undefined,
+        benefits: productForm.benefits.trim() || undefined,
+        price: productForm.price.trim() || undefined,
+        offerType: productForm.offerType.trim() || undefined,
+        cta: productForm.cta.trim() || undefined,
+      });
+
+      setProductForm({
+        name: "",
+        description: "",
+        audience: "",
+        painPoint: "",
+        benefits: "",
+        price: "",
+        offerType: "digital_product",
+        cta: "",
+      });
+
+      setProductFormOpen(false);
+      toast("Product added.", "success");
+    } catch {
+      toast("Could not add product.", "danger");
+    } finally {
+      setSavingProduct(false);
+    }
+  }
 
   return (
     <AppShell
