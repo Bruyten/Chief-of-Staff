@@ -138,7 +138,106 @@ export function ProjectDetailPage() {
             </div>
           )}
         </div>
+                  {productFormOpen && (
+            <Card className="border-emerald-400/20 bg-emerald-500/[0.03]">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-white font-semibold">Add product</div>
+                  <div className="text-white/45 text-[12px]">
+                    Save product details so generators can auto-fill faster.
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setProductFormOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
 
+              <div className="grid gap-3">
+                <label className="grid gap-1">
+                  <span className="text-white/55 text-[11px] uppercase tracking-wider">Product name</span>
+                  <input
+                    className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                    value={productForm.name}
+                    onChange={(e) => updateProductField("name", e.target.value)}
+                    placeholder="The Simple Digital Path"
+                  />
+                </label>
+
+                <label className="grid gap-1">
+                  <span className="text-white/55 text-[11px] uppercase tracking-wider">Description</span>
+                  <textarea
+                    className="min-h-24 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                    value={productForm.description}
+                    onChange={(e) => updateProductField("description", e.target.value)}
+                    placeholder="Beginner-friendly guide to digital marketing..."
+                  />
+                </label>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-white/55 text-[11px] uppercase tracking-wider">Audience</span>
+                    <input
+                      className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                      value={productForm.audience}
+                      onChange={(e) => updateProductField("audience", e.target.value)}
+                      placeholder="Beginners, creators, side hustlers"
+                    />
+                  </label>
+
+                  <label className="grid gap-1">
+                    <span className="text-white/55 text-[11px] uppercase tracking-wider">Pain point</span>
+                    <input
+                      className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                      value={productForm.painPoint}
+                      onChange={(e) => updateProductField("painPoint", e.target.value)}
+                      placeholder="Overwhelmed and unsure where to start"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-white/55 text-[11px] uppercase tracking-wider">Price / offer</span>
+                    <input
+                      className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                      value={productForm.price}
+                      onChange={(e) => updateProductField("price", e.target.value)}
+                      placeholder="$1 ebook, free guide, $19 course"
+                    />
+                  </label>
+
+                  <label className="grid gap-1">
+                    <span className="text-white/55 text-[11px] uppercase tracking-wider">CTA</span>
+                    <input
+                      className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                      value={productForm.cta}
+                      onChange={(e) => updateProductField("cta", e.target.value)}
+                      placeholder="Tap the link in bio"
+                    />
+                  </label>
+                </div>
+
+                <label className="grid gap-1">
+                  <span className="text-white/55 text-[11px] uppercase tracking-wider">Benefits</span>
+                  <textarea
+                    className="min-h-20 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                    value={productForm.benefits}
+                    onChange={(e) => updateProductField("benefits", e.target.value)}
+                    placeholder="Simple steps, beginner friendly, works from phone or laptop..."
+                  />
+                </label>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setProductFormOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddProduct} disabled={savingProduct}>
+                    {savingProduct ? "Saving..." : "Save product"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
         {/* Outputs */}
         <div>
           <SectionHeader title="Outputs" subtitle={`${projectOutputs.length} saved`} />
