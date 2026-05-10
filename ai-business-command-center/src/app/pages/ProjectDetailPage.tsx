@@ -112,7 +112,7 @@ export function ProjectDetailPage() {
               icon="📦"
               title="No products yet"
               description="Add products to make generation faster — fields auto-fill."
-              action={<Button>+ Add product</Button>}
+              action={<Button onClick={() => setProductFormOpen(true)}>✨ Add product</Button>}
             />
           ) : (
             <div className="space-y-2.5">
