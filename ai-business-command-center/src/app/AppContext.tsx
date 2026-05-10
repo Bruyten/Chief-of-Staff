@@ -10,7 +10,16 @@ import {
   mockUser, mockProjects, mockProducts, mockOutputs,
   type MockUser, type MockProject, type MockProduct, type MockOutput, type OutputType,
 } from "./mock/data";
-import { auth, projects as projectsApi, outputs as outputsApi, generate as generateApi, friendlyError, ApiException, type User, type Project, type Output } from "./lib/apiClient";
+import {
+  auth,
+  projects as projectsApi,
+  products as productsApi,
+  outputs as outputsApi,
+  generate as generateApi,
+  account as accountApi,
+  billing as billingApi,
+  friendlyError,
+} from"./lib/apiClient";
 
 export type AppPage =
   | "login" | "dashboard" | "new-task" | "projects"
