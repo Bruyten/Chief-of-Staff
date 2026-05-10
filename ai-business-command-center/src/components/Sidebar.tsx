@@ -109,7 +109,7 @@ export default function Sidebar(props: Props) {
   } = props;
 
   return (
-    <aside className="w-72 shrink-0 border-r border-white/5 bg-[#0b0d12] h-screen sticky top-0 flex flex-col">
+    <aside className="hidden">
       <div className="px-5 pt-6 pb-5 border-b border-white/5">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 grid place-items-center text-white font-bold shadow-lg shadow-violet-500/20">
