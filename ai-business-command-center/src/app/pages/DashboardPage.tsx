@@ -1,177 +1,281 @@
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../AppContext";
 import { AppShell } from "../layout/AppShell";
 import { Badge, Button, Card, EmptyState } from "../ui/Primitives";
+import { dashboard, friendlyError, type DashboardCommandCenter } from "../lib/apiClient";
 import { outputTypeLabels } from "../mock/data";
 
 export function DashboardPage() {
-  const { user, projects, outputs, navigate } = useApp();
-  const recent = outputs.slice(0, 5);
+  const { user, projects, outputs, navigate, mode, toast } = useApp();
+  const [commandCenter, setCommandCenter] = useState<DashboardCommandCenter | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (mode !== "live") return;
+
+    setLoading(true);
+    dashboard
+      .commandCenter()
+      .then(setCommandCenter)
+      .catch((error) => toast(friendlyError(error), "danger"))
+      .finally(() => setLoading(false));
+  }, [mode, toast]);
+
+  const fallbackRecommendations = useMemo(() => {
+    const items: DashboardCommandCenter["recommendations"] = [];
+
+    if (projects.length === 0) {
+      items.push({
+        id: "create-project",
+        title: "Create your first campaign workspace",
+        description: "Projects organize strategy, outputs, workflows, and future automation.",
+        priority: "high",
+        actionLabel: "Create Project",
+        actionPage: "projects",
+      });
+    }
+
+    if (projects.length > 0 && outputs.length === 0) {
+      items.push({
+        id: "generate-output",
+        title: "Generate your first saved output",
+        description: "Turn an active project into reusable content and campaign assets.",
+        priority: "high",
+        actionLabel: "Start Task",
+        actionPage: "new-task",
+      });
+    }
+
+    items.push({
+      id: "brand-voice",
+      title: "Create a reusable Brand Voice Profile",
+      description: "Keep Chat, Workflows, and future video prompts consistent.",
+      priority: "medium",
+      actionLabel: "Open Brand Voices",
+      actionPage: "brand-voices",
+    });
+
+    return items.slice(0, 4);
+  }, [outputs.length, projects.length]);
 
   const stats = [
-    { label: "Projects", value: projects.length, icon: "📁" },
-    { label: "Outputs", value: outputs.length, icon: "✨" },
-    { label: "Credits Left", value: user.credits, icon: "⚡" },
-    { label: "Plan", value: user.plan === "free" ? "Free" : "Pro", icon: "💎" },
+    {
+      label: "Campaigns",
+      value: commandCenter?.stats.projectCount ?? projects.length,
+      icon: "🗂️",
+    },
+    {
+      label: "Saved Outputs",
+      value: commandCenter?.stats.outputCount ?? outputs.length,
+      icon: "✨",
+    },
+    {
+      label: "Text Credits",
+      value: user.credits,
+      icon: "⚡",
+    },
+    {
+      label: "Video Credits",
+      value: user.videoCredits,
+      icon: "🎥",
+    },
   ];
 
-  const quickGenerators = [
-    { id: "tiktok_script", icon: "🎵", name: "TikTok Script" },
-    { id: "instagram_caption", icon: "📸", name: "IG Caption" },
-    { id: "email_welcome_sequence", icon: "📧", name: "Email Sequence" },
-    { id: "product_description", icon: "🛍️", name: "Product Desc" },
-    { id: "hook_generator", icon: "🪝", name: "10 Hooks" },
-    { id: "trust_building_post", icon: "🤝", name: "Trust Post" },
-  ];
+  const recommendations = commandCenter?.recommendations ?? fallbackRecommendations;
+
+  const recentOutputs =
+    commandCenter?.recentOutputs ??
+    outputs.slice(0, 5).map((output) => ({
+      id: output.id,
+      type: output.type,
+      title: output.title,
+      content: output.content,
+      projectId: output.projectId,
+      createdAt: output.createdAt,
+      updatedAt: output.createdAt,
+      project: output.projectId
+        ? {
+            id: output.projectId,
+            name: output.projectName,
+            emoji: output.projectEmoji ?? null,
+          }
+        : null,
+    }));
 
   return (
     <AppShell
-      title={`Hey ${user.name.split(" ")[0]} 👋`}
-      subtitle="Here's what's happening in your workspace today."
-      action={
-        <Button variant="primary" size="md" onClick={() => navigate("new-task")}>
-          ✨ New Task
-        </Button>
-      }
+      title="Dashboard"
+      subtitle="Your Digital Marketing Chief of Staff command center."
+      action={<Button onClick={() => navigate("new-task")}>✨ New Task</Button>}
     >
-      {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {stats.map((s) => (
-          <Card key={s.label} className="!p-4">
-            <div className="flex items-start justify-between">
-              <div className="text-[10px] uppercase tracking-widest text-white/40 font-semibold">{s.label}</div>
-              <span className="text-lg">{s.icon}</span>
-            </div>
-            <div className="text-2xl md:text-[28px] font-bold text-white mt-2">{s.value}</div>
-          </Card>
-        ))}
-      </div>
-
-      {/* Quick generators */}
-      <div className="mb-6">
-        <SectionHeader
-          title="Quick Generators"
-          subtitle="Tap a template to start a new task."
-          link={{ label: "All templates →", onClick: () => navigate("templates") }}
-        />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          {quickGenerators.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => navigate("new-task", { templateId: g.id })}
-              className="text-left rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] hover:border-violet-400/30 transition p-3.5 group"
-            >
-              <div className="text-2xl mb-1.5 group-hover:scale-110 transition-transform origin-left">{g.icon}</div>
-              <div className="text-white text-[12.5px] font-semibold leading-tight">{g.name}</div>
-            </button>
+      <div className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <Card key={stat.label}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/40 font-semibold">
+                    {stat.label}
+                  </div>
+                  <div className="mt-3 text-3xl font-semibold tracking-tight">{stat.value}</div>
+                </div>
+                <div className="text-2xl">{stat.icon}</div>
+              </div>
+            </Card>
           ))}
         </div>
-      </div>
 
-      {/* Two-column lower */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Recent outputs */}
-        <div className="lg:col-span-2">
-          <SectionHeader
-            title="Recent Outputs"
-            subtitle="Your last few generations."
-            link={{ label: "View all →", onClick: () => navigate("saved-outputs") }}
-          />
-          {recent.length === 0 ? (
-            <EmptyState
-              title="No outputs yet"
-              description="Run your first generation to see it here."
-              action={<Button onClick={() => navigate("new-task")}>✨ Start a task</Button>}
+        <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
+          <Card>
+            <SectionHeader
+              title="Recommended Next Actions"
+              subtitle="Rule-based prompts generated from real app state."
             />
-          ) : (
-            <Card padded={false}>
-              <div className="divide-y divide-white/5">
-                {recent.map((o) => {
-                  const meta = outputTypeLabels[o.type];
+
+            {loading ? (
+              <div className="mt-4 text-sm text-white/55">Loading recommendations…</div>
+            ) : recommendations.length === 0 ? (
+              <EmptyState
+                icon="✅"
+                title="No urgent next action"
+                description="Your workspace looks healthy. Start a workflow or open Chat to keep building momentum."
+                action={<Button onClick={() => navigate("workflows")}>Open Workflows</Button>}
+              />
+            ) : (
+              <div className="mt-4 space-y-3">
+                {recommendations.map((recommendation) => (
+                  <div
+                    key={recommendation.id}
+                    className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge>{recommendation.priority}</Badge>
+                        <div className="font-medium">{recommendation.title}</div>
+                      </div>
+                      <p className="mt-2 max-w-2xl text-sm text-white/55">{recommendation.description}</p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      onClick={() => navigate(recommendation.actionPage, recommendation.actionParams)}
+                    >
+                      {recommendation.actionLabel}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <SectionHeader
+              title="Helpful Shortcuts"
+              subtitle="Move directly into the operating layer."
+            />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <Shortcut label="Chief of Staff Chat" icon="🧠" onClick={() => navigate("chief-chat")} />
+              <Shortcut label="Launch Workflow" icon="🧩" onClick={() => navigate("workflows")} />
+              <Shortcut label="Create Campaign" icon="🗂️" onClick={() => navigate("projects")} />
+              <Shortcut label="Create Brand Profile" icon="🎙️" onClick={() => navigate("brand-voices")} />
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <SectionHeader
+              title="Campaign / Project Activity"
+              subtitle="Recent outputs and workflow activity."
+              link={{ label: "View Projects", onClick: () => navigate("projects") }}
+            />
+
+            {recentOutputs.length === 0 ? (
+              <EmptyState
+                icon="✨"
+                title="No recent saved outputs"
+                description="Generate campaign content or launch a workflow to populate this section."
+                action={<Button onClick={() => navigate("new-task")}>Start a Task</Button>}
+              />
+            ) : (
+              <div className="mt-4 divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10">
+                {recentOutputs.slice(0, 5).map((output) => {
+                  const meta = outputTypeLabels[output.type as keyof typeof outputTypeLabels];
+
                   return (
                     <button
-                      key={o.id}
-                      onClick={() => navigate("saved-outputs", { outputId: o.id })}
+                      type="button"
+                      key={output.id}
+                      onClick={() => navigate("saved-outputs", { outputId: output.id })}
                       className="w-full text-left px-4 py-3 hover:bg-white/[0.03] transition flex items-center gap-3"
                     >
-                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-white/5 grid place-items-center text-base shrink-0">
-                        {meta.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white text-[13.5px] font-medium truncate">{o.title}</div>
-                        <div className="text-white/45 text-[11.5px] mt-0.5 flex items-center gap-1.5">
-                          <span>{meta.label}</span>
-                          <span className="opacity-30">·</span>
-                          <span>{o.projectName}</span>
-                          <span className="opacity-30">·</span>
-                          <span>{relativeTime(o.createdAt)}</span>
+                      <div className="text-lg">{meta?.icon ?? "✨"}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{output.title}</div>
+                        <div className="truncate text-xs text-white/45">
+                          {meta?.label ?? output.type} · {output.project?.name ?? "No project"} ·{" "}
+                          {relativeTime(output.updatedAt)}
                         </div>
                       </div>
-                      <div className="text-white/30 text-sm">→</div>
+                      <span className="text-white/35">→</span>
                     </button>
                   );
                 })}
               </div>
-            </Card>
-          )}
-        </div>
+            )}
+          </Card>
 
-        {/* Projects + checklist */}
-        <div className="space-y-5">
-          <div>
+          <Card>
             <SectionHeader
-              title="Your Projects"
-              link={{ label: "All →", onClick: () => navigate("projects") }}
+              title="Active Automations"
+              subtitle="Recurring marketing jobs and their current status."
+              link={{ label: "Manage", onClick: () => navigate("automations") }}
             />
-            <Card padded={false}>
-              <div className="divide-y divide-white/5">
-                {projects.slice(0, 3).map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => navigate("project-detail", { projectId: p.id })}
-                    className="w-full text-left px-4 py-3 hover:bg-white/[0.03] transition flex items-center gap-3"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 grid place-items-center text-base shrink-0">
-                      {p.emoji}
+
+            {commandCenter?.activeAutomations?.length ? (
+              <div className="mt-4 space-y-3">
+                {commandCenter.activeAutomations.map((automation) => (
+                  <div key={automation.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-medium">{automation.name}</div>
+                        <div className="mt-1 text-xs text-white/45">
+                          {automation.enabled ? "Enabled" : "Disabled"} · Next:{" "}
+                          {formatMaybeDate(automation.nextRunAt)}
+                        </div>
+                      </div>
+                      <Badge>{automation.lastStatus ?? "new"}</Badge>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-white text-[13px] font-medium truncate">{p.name}</div>
-                      <div className="text-white/40 text-[11px] truncate">{p.outputCount} outputs</div>
+                    <div className="mt-3 text-xs text-white/45">
+                      Last run: {formatMaybeDate(automation.lastRunAt)}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
-            </Card>
-          </div>
-
-          {/* Setup checklist */}
-          <Card className="!bg-gradient-to-br !from-violet-500/10 !to-fuchsia-500/5 !border-violet-400/20">
-            <div className="text-[15px] font-semibold text-white">Setup checklist</div>
-            <div className="text-[12px] text-white/50 mb-3">Finish to unlock more.</div>
-            <div className="space-y-2">
-              {[
-                { done: true, label: "Create account" },
-                { done: true, label: "Create your first project" },
-                { done: true, label: "Generate your first output" },
-                { done: false, label: "Add brand voice to a project" },
-                { done: false, label: "Save 10 outputs to library" },
-              ].map((step) => (
-                <div key={step.label} className="flex items-center gap-2.5 text-[13px]">
-                  <span
-                    className={
-                      "w-4 h-4 rounded-full grid place-items-center text-[9px] font-bold shrink-0 " +
-                      (step.done ? "bg-emerald-500 text-white" : "border border-white/15 text-white/30")
-                    }
-                  >
-                    {step.done ? "✓" : ""}
-                  </span>
-                  <span className={step.done ? "text-white/40 line-through" : "text-white/85"}>{step.label}</span>
-                </div>
-              ))}
-            </div>
+            ) : (
+              <EmptyState
+                icon="⏱️"
+                title="No automations yet"
+                description="Create a recurring marketing automation once workflows and project context are ready."
+                action={<Button onClick={() => navigate("automations")}>Open Automations</Button>}
+              />
+            )}
           </Card>
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function Shortcut({ label, icon, onClick }: { label: string; icon: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] transition p-4 text-left flex items-center gap-3"
+    >
+      <span className="text-xl">{icon}</span>
+      <span className="font-medium">{label}</span>
+    </button>
   );
 }
 
@@ -185,16 +289,16 @@ function SectionHeader({
   link?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="flex items-end justify-between mb-3">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h2 className="text-white text-[15px] font-semibold">{title}</h2>
-        {subtitle && <div className="text-white/45 text-[12px] mt-0.5">{subtitle}</div>}
+        <h2 className="text-base font-semibold">{title}</h2>
+        {subtitle ? <p className="mt-1 text-sm text-white/45">{subtitle}</p> : null}
       </div>
-      {link && (
-        <button onClick={link.onClick} className="text-violet-300 hover:text-violet-200 text-[12px] font-medium">
+      {link ? (
+        <button type="button" onClick={link.onClick} className="text-sm text-violet-300 hover:text-violet-200">
           {link.label}
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -203,11 +307,15 @@ function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();
   const diff = Math.floor((now - then) / 1000);
+
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+
   return new Date(iso).toLocaleDateString();
 }
 
-export { Badge }; // re-export to silence unused warning if not used
+function formatMaybeDate(value: string | null | undefined) {
+  return value ? new Date(value).toLocaleString() : "—";
+}
