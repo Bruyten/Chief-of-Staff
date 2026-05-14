@@ -1,9 +1,9 @@
 {
   "name": "chief-of-staff-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "commonjs",
-  "description": "AI Marketing Assistant — Express + Prisma + OpenAI backend",
+  "description": "Digital Marketing Chief of Staff SaaS — Express + Prisma + AI backend",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -13,7 +13,12 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "automations:run-due": "node dist/jobs/runDueAutomations.js",
+    "video:poll-due": "node dist/jobs/pollVideoJobs.js",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:coverage": "vitest run --coverage --config vitest.config.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -25,10 +30,11 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "luxon": "^3.5.0",
     "openai": "^4.77.0",
-    "stripe": "^17.4.0",
     "pino": "^9.5.0",
     "pino-pretty": "^13.0.0",
+    "stripe": "^17.4.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -37,9 +43,14 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
+    "@types/luxon": "^3.4.2",
     "@types/node": "^22.10.2",
+    "@types/supertest": "^6.0.3",
+    "@vitest/coverage-v8": "^3.2.4",
     "prisma": "^5.22.0",
+    "supertest": "^7.1.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
   }
 }
