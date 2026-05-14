@@ -1,98 +1,215 @@
 import { Router } from "express";
+import { z } from "zod";
+import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { chatLimiter } from "../middleware/rateLimit.js";
+import { errors } from "../lib/errors.js";
+import { optionalSafeText, safeText } from "../lib/securityText.js";
+import {
+  createChatConversation,
+  sendChiefOfStaffMessage,
+} from "../services/chat.service.js";
+import { assertOwnsConversation } from "../services/ownership.service.js";
+
+const router = Router();
+
+router.use(requireAuth);
+
+const conversationSchema = z.object({
+  title: optionalSafeText(180),
   projectId: z.string().cuid().nullable().optional(),
   brandVoiceProfileId: z.string().cuid().nullable().optional(),
-  timezone: safeText(80, 1),
-  dayOfWeek: z.number().int().min(1).max(7).nullable().optional(),
-  dayOfMonth: z.number().int().min(1).max(31).nullable().optional(),
-  hour: z.number().int().min(0).max(23),
-  minute: z.number().int().min(0).max(59),
-  config: boundedJsonRecord(40, 50_000),
 });
 
-router.get("/", async (req, res, next) => {
-  try {
-    const automations = await listAutomations(req.user!.id);
-    res.json({ automations });
-  } catch (e) {
-    next(e);
-  }
+const messageSchema = z.object({
+  content: safeText(8000, 1),
 });
 
-router.post("/", async (req, res, next) => {
+const updateConversationSchema = z
+  .object({
+    title: optionalSafeText(180),
+    archived: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Provide at least one field to update.",
+  });
+
+router.get("/conversations", async (req, res, next) => {
   try {
-    const data = createSchema.parse(req.body);
-    const automation = await createAutomation({
-      userId: req.user!.id,
-      ...data,
+    const conversations = await prisma.chatConversation.findMany({
+      where: {
+        userId: req.user!.id,
+        archivedAt: null,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            emoji: true,
+          },
+        },
+        brandVoiceProfile: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        _count: {
+          select: {
+            messages: true,
+          },
+        },
+      },
     });
 
-    res.status(201).json({ automation });
-  } catch (e) {
-    next(e);
+    res.json({ conversations });
+  } catch (error) {
+    next(error);
   }
 });
 
-router.get("/:id", async (req, res, next) => {
+router.post("/conversations", async (req, res, next) => {
   try {
-    const automation = await getAutomation(req.user!.id, req.params.id);
-    res.json({ automation });
-  } catch (e) {
-    next(e);
+    const data = conversationSchema.parse(req.body);
+
+    const conversation = await createChatConversation({
+      userId: req.user!.id,
+      title: data.title || undefined,
+      projectId: data.projectId ?? null,
+      brandVoiceProfileId: data.brandVoiceProfileId ?? null,
+    });
+
+    res.status(201).json({ conversation });
+  } catch (error) {
+    next(error);
   }
 });
 
-router.patch("/:id", async (req, res, next) => {
+router.get("/conversations/:id", async (req, res, next) => {
   try {
-    const data = createSchema.partial().parse(req.body);
-    const automation = await updateAutomation(req.user!.id, req.params.id, data);
-    res.json({ automation });
-  } catch (e) {
-    next(e);
+    await assertOwnsConversation(req.user!.id, req.params.id);
+
+    const conversation = await prisma.chatConversation.findFirst({
+      where: {
+        id: req.params.id,
+        userId: req.user!.id,
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            emoji: true,
+          },
+        },
+        brandVoiceProfile: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        messages: {
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw errors.notFound("Chat conversation not found");
+    }
+
+    res.json({ conversation });
+  } catch (error) {
+    next(error);
   }
 });
 
-router.delete("/:id", async (req, res, next) => {
+router.patch("/conversations/:id", async (req, res, next) => {
   try {
-    await deleteAutomation(req.user!.id, req.params.id);
+    const data = updateConversationSchema.parse(req.body);
+    const owned = await assertOwnsConversation(req.user!.id, req.params.id);
+
+    const conversation = await prisma.chatConversation.update({
+      where: {
+        id: owned.id,
+      },
+      data: {
+        ...(data.title !== undefined
+          ? {
+              title: data.title || null,
+            }
+          : {}),
+        ...(data.archived !== undefined
+          ? {
+              archivedAt: data.archived ? new Date() : null,
+            }
+          : {}),
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            emoji: true,
+          },
+        },
+        brandVoiceProfile: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        _count: {
+          select: {
+            messages: true,
+          },
+        },
+      },
+    });
+
+    res.json({ conversation });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/conversations/:id", async (req, res, next) => {
+  try {
+    const owned = await assertOwnsConversation(req.user!.id, req.params.id);
+
+    await prisma.chatConversation.delete({
+      where: {
+        id: owned.id,
+      },
+    });
+
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
-router.post("/:id/enable", async (req, res, next) => {
+router.post("/conversations/:id/messages", chatLimiter, async (req, res, next) => {
   try {
-    const automation = await enableAutomation(req.user!.id, req.params.id);
-    res.json({ automation });
-  } catch (e) {
-    next(e);
-  }
-});
+    await assertOwnsConversation(req.user!.id, req.params.id);
 
-router.post("/:id/disable", async (req, res, next) => {
-  try {
-    const automation = await disableAutomation(req.user!.id, req.params.id);
-    res.json({ automation });
-  } catch (e) {
-    next(e);
-  }
-});
+    const data = messageSchema.parse(req.body);
 
-router.post("/:id/run-now", automationManualRunLimiter, async (req, res, next) => {
-  try {
-    const run = await queueAutomationRunNow(req.user!.id, req.params.id);
-    res.status(202).json({ run });
-  } catch (e) {
-    next(e);
-  }
-});
+    const result = await sendChiefOfStaffMessage({
+      userId: req.user!.id,
+      conversationId: req.params.id,
+      content: data.content,
+    });
 
-router.get("/:id/runs", async (req, res, next) => {
-  try {
-    const automation = await getAutomation(req.user!.id, req.params.id);
-    res.json({ runs: automation.runs });
-  } catch (e) {
-    next(e);
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
   }
 });
 
