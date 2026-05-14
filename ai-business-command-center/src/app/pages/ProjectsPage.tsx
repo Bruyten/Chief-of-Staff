@@ -1,29 +1,55 @@
 import { useState } from "react";
 import { useApp } from "../AppContext";
 import { AppShell } from "../layout/AppShell";
-import { Badge, Button, Card, EmptyState, Input, Modal } from "../ui/Primitives";
+import { Badge, Button, Card, EmptyState, Input, Modal, Textarea } from "../ui/Primitives";
 
 export function ProjectsPage() {
   const { projects, navigate, createProject, toast } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [niche, setNiche] = useState("");
-  const [emoji, setEmoji] = useState("✨");
-
   const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    niche: "",
+    emoji: "✨",
+    campaignGoal: "",
+    targetAudience: "",
+    offer: "",
+    campaignStatus: "planning" as "planning" | "active" | "paused" | "completed",
+    launchDate: "",
+  });
+
   const onCreate = async () => {
-    if (!name.trim() || creating) return;
+    if (!form.name.trim() || creating) return;
     setCreating(true);
+
     try {
-      const p = await createProject({ name, niche, emoji });
-      setName("");
-      setNiche("");
-      setEmoji("✨");
+      const project = await createProject({
+        name: form.name,
+        niche: form.niche,
+        emoji: form.emoji,
+        campaignGoal: form.campaignGoal,
+        targetAudience: form.targetAudience,
+        offer: form.offer,
+        campaignStatus: form.campaignStatus,
+        launchDate: form.launchDate ? new Date(form.launchDate).toISOString() : undefined,
+      });
+
+      setForm({
+        name: "",
+        niche: "",
+        emoji: "✨",
+        campaignGoal: "",
+        targetAudience: "",
+        offer: "",
+        campaignStatus: "planning",
+        launchDate: "",
+      });
+
       setModalOpen(false);
-      toast("Project created");
-      navigate("project-detail", { projectId: p.id });
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Could not create project", "danger");
+      toast("Campaign workspace created");
+      navigate("project-detail", { projectId: project.id });
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Could not create campaign workspace", "danger");
     } finally {
       setCreating(false);
     }
@@ -31,45 +57,49 @@ export function ProjectsPage() {
 
   return (
     <AppShell
-      title="Projects"
-      subtitle="A project is one business or product line."
-      action={
-        <Button onClick={() => setModalOpen(true)} size="md">
-          + New Project
-        </Button>
-      }
+      title="Campaign Workspaces"
+      subtitle="Projects now act as campaign command centers for strategy, outputs, workflows, and automations."
+      action={<Button onClick={() => setModalOpen(true)}>+ New Campaign</Button>}
     >
       {projects.length === 0 ? (
-        <EmptyState
-          title="No projects yet"
-          description="Projects help you organize products and outputs by business or audience."
-          action={<Button onClick={() => setModalOpen(true)}>+ Create your first project</Button>}
-        />
+        <Card>
+          <EmptyState
+            icon="🗂️"
+            title="No campaign workspaces yet"
+            description="Create one to organize strategy, saved outputs, workflows, and future automations."
+            action={<Button onClick={() => setModalOpen(true)}>+ Create your first campaign</Button>}
+          />
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {projects.map((p) => (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project) => (
             <button
-              key={p.id}
-              onClick={() => navigate("project-detail", { projectId: p.id })}
+              type="button"
+              key={project.id}
+              onClick={() => navigate("project-detail", { projectId: project.id })}
               className="text-left"
             >
-              <Card className="hover:bg-white/[0.05] hover:border-white/20 transition cursor-pointer h-full">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 grid place-items-center text-xl">
-                    {p.emoji}
-                  </div>
-                  <Badge tone="violet">{p.niche}</Badge>
+              <Card className="h-full hover:border-violet-400/30 hover:bg-white/[0.05] transition">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-2xl">{project.emoji}</div>
+                  <Badge>{project.campaignStatus ?? "planning"}</Badge>
                 </div>
-                <div className="text-white font-semibold text-[15px]">{p.name}</div>
-                {p.brandVoice && (
-                  <div className="text-white/50 text-[12px] mt-1.5 line-clamp-2 leading-relaxed">
-                    {p.brandVoice}
-                  </div>
+
+                <div className="mt-4 text-xs uppercase tracking-[0.18em] text-white/40 font-semibold">
+                  {project.niche}
+                </div>
+                <div className="mt-2 text-lg font-semibold">{project.name}</div>
+
+                {project.campaignGoal ? (
+                  <p className="mt-3 text-sm text-white/55 line-clamp-3">{project.campaignGoal}</p>
+                ) : (
+                  <p className="mt-3 text-sm text-white/35">No campaign goal added yet.</p>
                 )}
-                <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5 text-[11px] text-white/45">
-                  <span>📦 {p.productCount} products</span>
-                  <span className="opacity-30">·</span>
-                  <span>✨ {p.outputCount} outputs</span>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                  <Metric label="Outputs" value={project.outputCount} />
+                  <Metric label="Runs" value={project.workflowRunCount ?? 0} />
+                  <Metric label="Autos" value={project.automationCount ?? 0} />
                 </div>
               </Card>
             </button>
@@ -80,50 +110,117 @@ export function ProjectsPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="New Project"
+        title="New Campaign Workspace"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>
+            <Button variant="secondary" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={onCreate}>Create project</Button>
+            <Button onClick={() => void onCreate()} loading={creating}>
+              Create campaign
+            </Button>
           </>
         }
       >
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           <div>
-            <div className="block text-[12px] font-medium text-white/70 mb-1.5">Emoji</div>
-            <div className="flex gap-1.5 flex-wrap">
-              {["✨", "🧴", "💚", "🚀", "📚", "🎨", "🍃", "💎", "🔥", "🎯", "🛍️"].map((e) => (
+            <div className="text-sm text-white/70 mb-2">Emoji</div>
+            <div className="flex flex-wrap gap-2">
+              {["✨", "🚀", "🎯", "💸", "📣", "🧠", "🛍️", "🎥", "🌱"].map((emoji) => (
                 <button
-                  key={e}
+                  key={emoji}
                   type="button"
-                  onClick={() => setEmoji(e)}
+                  onClick={() => setForm((current) => ({ ...current, emoji }))}
                   className={
-                    "w-9 h-9 rounded-lg border text-lg grid place-items-center transition " +
-                    (e === emoji ? "bg-white/10 border-white/30" : "bg-white/[0.02] border-white/10 hover:bg-white/5")
+                    "w-10 h-10 rounded-xl border text-lg grid place-items-center transition " +
+                    (emoji === form.emoji
+                      ? "bg-white/10 border-white/30"
+                      : "bg-white/[0.02] border-white/10 hover:bg-white/5")
                   }
                 >
-                  {e}
+                  {emoji}
                 </button>
               ))}
             </div>
           </div>
+
           <Input
-            label="Project name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Glow Skincare"
+            label="Campaign name"
+            value={form.name}
+            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+            placeholder="e.g. Spring Serum Launch"
             autoFocus
           />
+
           <Input
-            label="Niche / category"
-            value={niche}
-            onChange={(e) => setNiche(e.target.value)}
+            label="Niche / business type"
+            value={form.niche}
+            onChange={(event) => setForm((current) => ({ ...current, niche: event.target.value }))}
             placeholder="e.g. Beauty / DTC"
           />
+
+          <Textarea
+            label="Campaign goal"
+            rows={2}
+            value={form.campaignGoal}
+            onChange={(event) => setForm((current) => ({ ...current, campaignGoal: event.target.value }))}
+            placeholder="What does this campaign need to accomplish?"
+          />
+
+          <Textarea
+            label="Target audience"
+            rows={2}
+            value={form.targetAudience}
+            onChange={(event) => setForm((current) => ({ ...current, targetAudience: event.target.value }))}
+            placeholder="Who is this campaign for?"
+          />
+
+          <Textarea
+            label="Offer"
+            rows={2}
+            value={form.offer}
+            onChange={(event) => setForm((current) => ({ ...current, offer: event.target.value }))}
+            placeholder="What are you promoting?"
+          />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2">
+              <div className="text-sm text-white/70">Status</div>
+              <select
+                value={form.campaignStatus}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    campaignStatus: event.target.value as typeof current.campaignStatus,
+                  }))
+                }
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
+              >
+                <option value="planning">Planning</option>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+
+            <Input
+              label="Launch date"
+              type="date"
+              value={form.launchDate}
+              onChange={(event) => setForm((current) => ({ ...current, launchDate: event.target.value }))}
+            />
+          </div>
         </div>
       </Modal>
     </AppShell>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-black/20 px-2 py-2">
+      <div className="text-white font-semibold">{value}</div>
+      <div className="text-white/40 mt-0.5">{label}</div>
+    </div>
   );
 }
