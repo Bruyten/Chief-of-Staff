@@ -69,4 +69,32 @@ router.get("/me", async (req, res, next) => {
 const checkoutSchema = z.object({
   plan: z.enum(["starter", "pro", "agency"]),
 });
+
+router.post("/checkout", async (req, res, next) => {
+  try {
+    const { plan } = checkoutSchema.parse(req.body);
+    const planConfig = PLANS[plan];
+
+    if (!planConfig.stripePriceId && !isFakeStripe()) {
+      throw errors.badRequest(`No Stripe price ID configured for plan: ${plan}`);
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { id: true, email: true, stripeCustomerId: true },
+    });
+
+    if (!user) throw errors.unauthorized("Account not found");
+
+    const customerId = await ensureCustomer({
+      userId: user.id,
+      email: user.email,
+      existingCustomerId: user.stripeCustomerId,
+    });
+
+    if (customerId !== user.stripeCustomerId) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { stripeCustomerId: customerId },
+      });
 export default router;
