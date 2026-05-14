@@ -20,20 +20,51 @@ services:
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
+      - key: NODE_ENV
+        value: production
+
+      - key: CLIENT_ORIGIN
+        value: https://chief-of-staff-web.onrender.com
+      - key: CORS_ORIGINS
+        value: https://chief-of-staff-web.onrender.com
+
       - key: FAKE_AI
         value: "true"
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      - key: OPENAI_API_KEY
+        sync: false
+
       - key: FAKE_STRIPE
         value: "true"
-      - key: CLIENT_ORIGIN
-        value: https://chief-of-staff-web.onrender.com
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_STARTER
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_PRICE_AGENCY
+        sync: false
+
       - key: BILLING_SUCCESS_URL
-        value: https://chief-of-staff-web.onrender.com/billing/success
+        value: https://chief-of-staff-web.onrender.com/?billing=success
       - key: BILLING_CANCEL_URL
-        value: https://chief-of-staff-web.onrender.com/pricing
-      - key: NODE_ENV
-        value: production
+        value: https://chief-of-staff-web.onrender.com/?billing=cancel
+
+      - key: VIDEO_PROVIDER
+        value: mock
+      - key: VIDEO_PROVIDER_API_KEY
+        sync: false
+      - key: VIDEO_PROVIDER_BASE_URL
+        sync: false
+      - key: VIDEO_PROVIDER_WEBHOOK_SECRET
+        sync: false
+      - key: VIDEO_MOCK_COMPLETED_URL
+        value: ""
+      - key: VIDEO_POLL_BATCH_SIZE
+        value: "10"
 
   - type: web
     name: chief-of-staff-web
@@ -45,3 +76,59 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://chief-of-staff-api.onrender.com
+
+  - type: cron
+    name: chief-of-staff-run-due-automations
+    runtime: node
+    rootDir: ai-business-command-center/server
+    schedule: "*/15 * * * *"
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    startCommand: npm run automations:run-due
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chief-of-staff-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        sync: false
+      - key: FAKE_AI
+        value: "true"
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: VIDEO_PROVIDER
+        value: mock
+      - key: VIDEO_POLL_BATCH_SIZE
+        value: "10"
+
+  - type: cron
+    name: chief-of-staff-poll-video-jobs
+    runtime: node
+    rootDir: ai-business-command-center/server
+    schedule: "*/10 * * * *"
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    startCommand: npm run video:poll-due
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chief-of-staff-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        sync: false
+      - key: VIDEO_PROVIDER
+        value: mock
+      - key: VIDEO_PROVIDER_API_KEY
+        sync: false
+      - key: VIDEO_PROVIDER_BASE_URL
+        sync: false
+      - key: VIDEO_PROVIDER_WEBHOOK_SECRET
+        sync: false
+      - key: VIDEO_MOCK_COMPLETED_URL
+        value: ""
+      - key: VIDEO_POLL_BATCH_SIZE
+        value: "10"
