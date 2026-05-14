@@ -1,8 +1,157 @@
 import { prisma } from "../lib/prisma.js";
+import { errors } from "../lib/errors.js";
+import {
+  findWorkflowTemplate,
+  WORKFLOW_TEMPLATES,
+} from "../lib/workflowTemplates.js";
+import { runGenerationUnit } from "./generationUnit.service.js";
+
+export function listWorkflowTemplates() {
+  return WORKFLOW_TEMPLATES;
+}
+
+export async function listWorkflowRuns(userId: string) {
+  return prisma.workflowRun.findMany({
+    where: {
+      userId,
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+        },
+      },
+      brandVoiceProfile: {
+        select: {
+          id: true,
+          brandName: true,
+        },
+      },
+      steps: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+    },
+  });
+}
+
+export async function getWorkflowRun(userId: string, runId: string) {
+  const run = await prisma.workflowRun.findFirst({
+    where: {
+      id: runId,
+      userId,
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+        },
+      },
+      brandVoiceProfile: {
+        select: {
+          id: true,
+          brandName: true,
+        },
+      },
+      steps: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        include: {
+          output: true,
+        },
+      },
+    },
+  });
+
+  if (!run) {
+    throw errors.notFound("Workflow run not found");
+  }
+
+  return run;
+}
+
+async function assertWorkflowContextOwnership(input: {
+  userId: string;
+  projectId?: string | null;
+  brandVoiceProfileId?: string | null;
+}) {
+  if (input.projectId) {
+    const project = await prisma.project.findFirst({
+      where: {
+        id: input.projectId,
+        userId: input.userId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!project) {
+      throw errors.notFound("Project not found");
+    }
+  }
+
+  if (input.brandVoiceProfileId) {
+    const profile = await prisma.brandVoiceProfile.findFirst({
+      where: {
+        id: input.brandVoiceProfileId,
+        userId: input.userId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!profile) {
+      throw errors.notFound("Brand Voice Profile not found");
+    }
+  }
+}
+
+export async function createWorkflowRun(input: {
+  userId: string;
+  templateId: string;
+  title?: string;
+  projectId?: string | null;
+  brandVoiceProfileId?: string | null;
+  context: Record<string, unknown>;
+}) {
+  const template = findWorkflowTemplate(input.templateId);
+
+  if (!template) {
+    throw errors.badRequest("Unknown workflow template");
+  }
+
+  await assertWorkflowContextOwnership({
+    userId: input.userId,
+    projectId: input.projectId,
+    brandVoiceProfileId: input.brandVoiceProfileId,
+  });
+
+  const run = await prisma.workflowRun.create({
+    data: {
+      userId: input.userId,
+      projectId: input.projectId ?? null,
+      brandVoiceProfileId: input.brandVoiceProfileId ?? null,
+      templateId: template.id,
+      title: input.title?.trim() || template.name,
+      status: "running",
+      input: input.context as object,
+    },
   });
 
   let creditsSpent = 0;
-  let failureCount = 0;
+  let successfulSteps = 0;
+  let failedSteps = 0;
 
   for (const step of template.steps) {
     const stepRecord = await prisma.workflowRunStep.create({
@@ -38,7 +187,9 @@ import { prisma } from "../lib/prisma.js";
       });
 
       await prisma.workflowRunStep.update({
-        where: { id: stepRecord.id },
+        where: {
+          id: stepRecord.id,
+        },
         data: {
           status: "done",
           content: result.content,
@@ -49,12 +200,17 @@ import { prisma } from "../lib/prisma.js";
       });
 
       creditsSpent += 1;
-    } catch (err) {
-      failureCount += 1;
-      const message = err instanceof Error ? err.message : "Workflow step failed";
+      successfulSteps += 1;
+    } catch (error) {
+      failedSteps += 1;
+
+      const message =
+        error instanceof Error ? error.message : "Workflow step failed";
 
       await prisma.workflowRunStep.update({
-        where: { id: stepRecord.id },
+        where: {
+          id: stepRecord.id,
+        },
         data: {
           status: "failed",
           errorMsg: message,
@@ -64,14 +220,27 @@ import { prisma } from "../lib/prisma.js";
     }
   }
 
-  const status = failureCount === 0 ? "completed" : creditsSpent > 0 ? "completed_with_errors" : "failed";
+  const status =
+    failedSteps === 0
+      ? "completed"
+      : successfulSteps > 0
+        ? "completed_with_errors"
+        : "failed";
 
   await prisma.workflowRun.update({
-    where: { id: run.id },
+    where: {
+      id: run.id,
+    },
     data: {
       status,
       creditsSpent,
       completedAt: new Date(),
+      summary:
+        status === "completed"
+          ? "Workflow completed successfully."
+          : status === "completed_with_errors"
+            ? "Workflow completed with one or more failed steps."
+            : "Workflow failed before producing a successful step.",
     },
   });
 
