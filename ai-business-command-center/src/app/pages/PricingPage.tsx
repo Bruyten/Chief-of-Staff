@@ -5,64 +5,119 @@ import { Badge, Button, Card } from "../ui/Primitives";
 import { billing, friendlyError, type BillingPlan } from "../lib/apiClient";
 import { cn } from "../../utils/cn";
 
-// Mirror of the server PLANS — used in mock mode where there's no backend.
 const MOCK_PLANS: BillingPlan[] = [
-  { id: "free",    name: "Free",    priceUsd: 0,  credits: 5,    features: ["5 AI generations / month", "All 15 generators", "Unlimited projects", "Saved library"] },
-  { id: "starter", name: "Starter", priceUsd: 19, credits: 100,  features: ["100 AI generations / month", "Everything in Free", "Priority email support"] },
-  { id: "pro",     name: "Pro",     priceUsd: 49, credits: 500,  features: ["500 AI generations / month", "Everything in Starter", "Brand voice profiles (Phase 2)", "Bulk export"] },
-  { id: "agency",  name: "Agency",  priceUsd: 99, credits: 2000, features: ["2,000 AI generations / month", "Everything in Pro", "3 client workspaces (Phase 2)", "Founder Slack channel"] },
+  {
+    id: "free",
+    name: "Free",
+    priceUsd: 0,
+    textCredits: 5,
+    videoCredits: 0,
+    features: [
+      "5 text AI generations / month",
+      "Core generators",
+      "Unlimited projects",
+      "Saved library",
+      "Video Studio locked",
+    ],
+  },
+  {
+    id: "starter",
+    name: "Starter",
+    priceUsd: 19,
+    textCredits: 100,
+    videoCredits: 0,
+    features: [
+      "100 text AI generations / month",
+      "Chief of Staff Chat",
+      "Workflows and Automations use text credits",
+      "Video Studio locked",
+    ],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    priceUsd: 49,
+    textCredits: 500,
+    videoCredits: 3,
+    features: [
+      "500 text AI generations / month",
+      "3 premium video credits / month",
+      "Brand Voice Profiles",
+      "Chief of Staff Chat",
+      "Workflows and Automations",
+    ],
+  },
+  {
+    id: "agency",
+    name: "Agency",
+    priceUsd: 99,
+    textCredits: 2000,
+    videoCredits: 10,
+    features: [
+      "2,000 text AI generations / month",
+      "10 premium video credits / month",
+      "Everything in Pro",
+      "Higher-capacity production",
+      "Founder support channel",
+    ],
+  },
 ];
 
 export function PricingPage() {
   const { user, mode, navigate, toast, upgradePlanLocal } = useApp();
   const [plans, setPlans] = useState<BillingPlan[]>(MOCK_PLANS);
-  const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
-  const [fakeStripe, setFakeStripe] = useState<boolean>(true);
+  const [loadingPlanId, setLoadingPlanId] = useState<BillingPlan["id"] | null>(null);
+  const [fakeStripe, setFakeStripe] = useState(true);
 
   useEffect(() => {
     if (mode !== "live") return;
+
     billing
       .plans()
-      .then((res) => {
-        setPlans(res.plans);
-        setFakeStripe(res.fakeStripe);
+      .then((response) => {
+        setPlans(response.plans);
+        setFakeStripe(response.fakeStripe);
       })
-      .catch(() => { /* fall back to MOCK_PLANS */ });
+      .catch(() => {
+        // fallback to mock plans
+      });
   }, [mode]);
 
   const onSelect = async (planId: BillingPlan["id"]) => {
     if (planId === "free") {
-      toast("You're already on a paid path — switching to free is via Settings.", "info");
+      toast("Switching down to free is handled from Settings / subscription management.", "info");
       return;
     }
+
     if (planId === user.plan) {
       toast("You're already on this plan.", "info");
       return;
     }
+
     setLoadingPlanId(planId);
+
     try {
       if (mode === "mock") {
-        // Pure local — instant upgrade for the demo
-        const plan = plans.find((p) => p.id === planId)!;
-        upgradePlanLocal(planId, plan.credits);
+        const plan = plans.find((entry) => entry.id === planId)!;
+        upgradePlanLocal(planId, plan.textCredits, plan.videoCredits);
         toast(`Upgraded to ${plan.name} (mock mode)`);
         navigate("dashboard");
         return;
       }
+
       const { url } = await billing.checkout(planId as "starter" | "pro" | "agency");
-      // In FAKE_STRIPE mode the URL points back at our app with ?fake=1.
-      // We honor it by calling /simulate-success then bouncing to dashboard.
+
       if (fakeStripe && url.includes("fake=1")) {
         await billing.simulateSuccess(planId as "starter" | "pro" | "agency");
-        const plan = plans.find((p) => p.id === planId)!;
-        upgradePlanLocal(planId, plan.credits);
+        const plan = plans.find((entry) => entry.id === planId)!;
+        upgradePlanLocal(planId, plan.textCredits, plan.videoCredits);
         toast(`Upgraded to ${plan.name} (fake Stripe mode)`);
         navigate("dashboard");
       } else {
-        window.location.href = url;        // real Stripe Checkout
+        window.location.href = url;
       }
-    } catch (e) {
-      toast(friendlyError(e), "danger");
+    } catch (error) {
+      toast(friendlyError(error), "danger");
     } finally {
       setLoadingPlanId(null);
     }
@@ -71,81 +126,97 @@ export function PricingPage() {
   return (
     <AppShell
       title="Pricing"
-      subtitle="Pick a plan. Upgrade or cancel anytime."
+      subtitle="Text AI usage and premium video usage are tracked separately."
       action={
-        <Button variant="ghost" size="md" onClick={() => navigate("settings")}>
+        <Button variant="secondary" onClick={() => navigate("settings")}>
           ← Back
         </Button>
       }
     >
-      {fakeStripe && (
-        <div className="mb-5 rounded-xl border border-amber-400/20 bg-amber-500/[0.06] px-4 py-3 text-amber-100 text-[13px]">
-          🧪 <strong>FAKE_STRIPE mode is on.</strong> Clicking a plan upgrades you instantly without
-          touching a real Stripe account — perfect for development. Set
-          <code className="mx-1 text-amber-200">FAKE_STRIPE=false</code> + paste real
-          <code className="mx-1 text-amber-200">STRIPE_*</code> env vars when you're ready.
+      <div className="space-y-6">
+        {fakeStripe ? (
+          <Card>
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+              <strong>FAKE_STRIPE mode is on.</strong> Clicking a paid plan upgrades instantly for development.
+              Switch to live Stripe only after products, prices, webhooks, and env vars are configured.
+            </div>
+          </Card>
+        ) : null}
+
+        <div className="grid gap-4 xl:grid-cols-4">
+          {plans.map((plan) => {
+            const isCurrent = user.plan === plan.id;
+            const isHighlighted = plan.id === "pro";
+
+            return (
+              <Card
+                key={plan.id}
+                className={cn(
+                  "relative h-full",
+                  isHighlighted ? "border-violet-400/40 bg-violet-400/[0.06]" : ""
+                )}
+              >
+                {isHighlighted ? (
+                  <div className="absolute right-4 top-4">
+                    <Badge>Most popular</Badge>
+                  </div>
+                ) : null}
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-semibold">{plan.name}</h2>
+                      {isCurrent ? <Badge>Current</Badge> : null}
+                    </div>
+                    <div className="mt-3 text-3xl font-semibold">${plan.priceUsd}</div>
+                    <div className="text-sm text-white/45">/ month</div>
+                  </div>
+
+                  <div className="grid gap-2 text-sm">
+                    <Allowance label="Text AI" value={`${plan.textCredits.toLocaleString()} / month`} />
+                    <Allowance label="Video" value={`${plan.videoCredits.toLocaleString()} / month`} />
+                  </div>
+
+                  <div className="space-y-2 text-sm text-white/70 min-h-[160px]">
+                    {plan.features.map((feature) => (
+                      <div key={feature} className="flex gap-2">
+                        <span className="text-emerald-300">✓</span>
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    loading={loadingPlanId === plan.id}
+                    disabled={isCurrent}
+                    onClick={() => void onSelect(plan.id)}
+                  >
+                    {isCurrent
+                      ? "Current plan"
+                      : plan.id === "free"
+                        ? "Stay free"
+                        : `Choose ${plan.name}`}
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
         </div>
-      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {plans.map((plan) => {
-          const isCurrent = user.plan === plan.id;
-          const isHighlighted = plan.id === "pro";
-          return (
-            <Card
-              key={plan.id}
-              padded={false}
-              className={cn(
-                "flex flex-col overflow-hidden transition",
-                isHighlighted && "!border-violet-400/40 ring-1 ring-violet-400/20",
-                isCurrent && "!border-emerald-400/40"
-              )}
-            >
-              {isHighlighted && (
-                <div className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] uppercase tracking-widest font-semibold text-center py-1">
-                  Most popular
-                </div>
-              )}
-              <div className="px-5 pt-5 pb-4 border-b border-white/5">
-                <div className="flex items-center justify-between">
-                  <div className="text-white text-lg font-bold">{plan.name}</div>
-                  {isCurrent && <Badge tone="success">Current</Badge>}
-                </div>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-white">${plan.priceUsd}</span>
-                  <span className="text-white/45 text-sm">/ month</span>
-                </div>
-                <div className="text-white/50 text-[12px] mt-1">{plan.credits.toLocaleString()} generations / month</div>
-              </div>
-              <div className="px-5 py-4 flex-1">
-                <ul className="space-y-2 text-[13px]">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-white/80">
-                      <span className="text-emerald-400 mt-0.5">✓</span>
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="px-5 pb-5">
-                <Button
-                  variant={isHighlighted ? "primary" : "secondary"}
-                  className="w-full"
-                  loading={loadingPlanId === plan.id}
-                  disabled={isCurrent}
-                  onClick={() => onSelect(plan.id)}
-                >
-                  {isCurrent ? "Current plan" : plan.id === "free" ? "Stay free" : `Choose ${plan.name}`}
-                </Button>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <div className="mt-8 text-center text-[12px] text-white/40">
-        Prices in USD. Cancel anytime in Settings → Manage subscription.
+        <div className="text-sm text-white/45 text-center">
+          Prices shown in USD. Manage or cancel active billing from Settings.
+        </div>
       </div>
     </AppShell>
+  );
+}
+
+function Allowance({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/40">{label}</div>
+      <div className="mt-1 font-medium">{value}</div>
+    </div>
   );
 }
