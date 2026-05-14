@@ -2,27 +2,63 @@ import { useEffect, useState } from "react";
 import { useApp } from "../AppContext";
 import { AppShell } from "../layout/AppShell";
 import { Badge, Button, Card, Input } from "../ui/Primitives";
-import { billing, friendlyError, type BillingMe } from "../lib/apiClient";
+import { account, billing, friendlyError, type BillingMe } from "../lib/apiClient";
 
 export function SettingsPage() {
-  const { user, logout, toast, mode, navigate, refreshUser, upgradePlanLocal } = useApp();
+  const {
+    user,
+    logout,
+    toast,
+    mode,
+    navigate,
+    refreshUser,
+    upgradePlanLocal,
+  } = useApp();
+
   const [name, setName] = useState(user.name);
-  const [savedName, setSavedName] = useState(false);
+  const [savingName, setSavingName] = useState(false);
   const [billingState, setBillingState] = useState<BillingMe | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
 
   useEffect(() => {
+    setName(user.name);
+  }, [user.name]);
+
+  useEffect(() => {
     if (mode !== "live") return;
-    billing.me().then(setBillingState).catch(() => { /* ignore */ });
+
+    billing.me().then(setBillingState).catch(() => {
+      // ignore initial billing load failure
+    });
   }, [mode]);
+
+  const saveProfile = async () => {
+    if (!name.trim() || name.trim() === user.name) return;
+    setSavingName(true);
+
+    try {
+      if (mode === "live") {
+        await account.updateProfile({ name: name.trim() });
+        await refreshUser();
+      }
+
+      toast("Profile updated");
+    } catch (error) {
+      toast(friendlyError(error), "danger");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const onManage = async () => {
     if (mode === "mock") {
-      toast("Cancelling subscription (mock mode).", "info");
-      upgradePlanLocal("starter", 100);     // toggle a fake demote
+      toast("Subscription management demo triggered (mock mode).", "info");
+      upgradePlanLocal("starter", 100, 0);
       return;
     }
+
     setBillingBusy(true);
+
     try {
       if (billingState?.fakeStripe) {
         await billing.simulateCancel();
@@ -34,151 +70,131 @@ export function SettingsPage() {
         const { url } = await billing.portal();
         window.location.href = url;
       }
-    } catch (e) {
-      toast(friendlyError(e), "danger");
+    } catch (error) {
+      toast(friendlyError(error), "danger");
     } finally {
       setBillingBusy(false);
     }
   };
 
   return (
-    <AppShell title="Settings" subtitle="Profile, plan, and account.">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Profile */}
-        <div className="lg:col-span-2 space-y-5">
-          <Card>
-            <SectionTitle title="Profile" subtitle="How you appear in the app." />
-            <div className="flex items-center gap-4 mb-5">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 grid place-items-center text-lg font-semibold text-white">
-                {user.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <div className="text-white font-semibold">{user.name}</div>
-                <div className="text-white/45 text-[12.5px]">{user.email}</div>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <Input
-                label="Display name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setSavedName(false);
-                }}
-              />
-              <Input label="Email" value={user.email} disabled hint="Email changes coming in Phase 1.5." />
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <Button
-                  onClick={() => {
-                    setSavedName(true);
-                    toast("Profile updated");
-                  }}
-                  disabled={savedName || name === user.name}
-                >
-                  {savedName ? "✓ Saved" : "Save changes"}
-                </Button>
-              </div>
-            </div>
-          </Card>
+    <AppShell title="Settings" subtitle="Profile, subscription, usage, and platform readiness.">
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <Card>
+          <SectionTitle title="Profile" subtitle="Basic account identity shown across the app." />
 
-          <Card>
-            <SectionTitle title="Danger zone" subtitle="Account-level actions." />
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-white text-[13.5px] font-semibold">Sign out</div>
-                <div className="text-white/45 text-[12px]">End your session on this device.</div>
-              </div>
-              <Button variant="danger" onClick={logout}>
-                Sign out
-              </Button>
+          <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="h-14 w-14 rounded-full bg-white/10 grid place-items-center text-lg font-semibold">
+              {user.name.slice(0, 2).toUpperCase()}
             </div>
-            <div className="border-t border-white/5 mt-4 pt-4 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-white text-[13.5px] font-semibold">Delete account</div>
-                <div className="text-white/45 text-[12px]">Permanently delete all data. Coming in Phase 1.5.</div>
-              </div>
-              <Button variant="danger" disabled>
-                Delete
-              </Button>
+            <div>
+              <div className="font-semibold">{user.name}</div>
+              <div className="text-sm text-white/45">{user.email}</div>
             </div>
-          </Card>
-        </div>
+          </div>
 
-        {/* Plan & credits */}
-        <div className="space-y-5">
-          <Card className="!bg-gradient-to-br !from-violet-500/10 !to-fuchsia-500/5 !border-violet-400/20">
-            <div className="flex items-center justify-between mb-2">
-              <SectionTitle title="Your plan" />
-              <Badge tone={user.plan === "free" ? "neutral" : "violet"}>
-                {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)}
-              </Badge>
-            </div>
-            <div className="text-white text-2xl font-bold mt-2">
-              {user.credits}
-              <span className="text-white/40 text-base font-normal"> / {user.creditsMax} credits</span>
-            </div>
-            <div className="text-white/45 text-[12px] mb-3">
-              {billingState?.subscription?.cancelAtPeriodEnd
-                ? `Cancels on ${new Date(billingState.subscription.currentPeriodEnd).toLocaleDateString()}`
-                : billingState?.subscription
-                ? `Renews on ${new Date(billingState.subscription.currentPeriodEnd).toLocaleDateString()}`
-                : "Resets monthly."}
-            </div>
-            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-4">
-              <div
-                className="h-full bg-gradient-to-r from-violet-400 to-fuchsia-400 transition-all"
-                style={{ width: `${Math.min(100, (user.credits / Math.max(user.creditsMax, 1)) * 100)}%` }}
-              />
-            </div>
+          <div className="mt-5 space-y-4">
+            <Input label="Display name" value={name} onChange={(event) => setName(event.target.value)} />
+            <Button onClick={() => void saveProfile()} loading={savingName} disabled={!name.trim() || name.trim() === user.name}>
+              Save profile
+            </Button>
+          </div>
 
+          <div className="mt-8 border-t border-white/10 pt-5 space-y-3">
+            <div>
+              <div className="font-medium">Sign out</div>
+              <div className="text-sm text-white/45">End your session on this device.</div>
+            </div>
+            <Button variant="secondary" onClick={() => void logout()}>
+              Sign out
+            </Button>
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle title="Plan and usage" subtitle="Text AI and premium video credits are tracked separately." />
+
+          <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="text-lg font-semibold capitalize">{user.plan}</div>
+                {billingState?.fakeStripe ? <Badge>FAKE_STRIPE</Badge> : null}
+              </div>
+              <div className="mt-1 text-sm text-white/45">
+                {billingState?.subscription?.cancelAtPeriodEnd
+                  ? `Cancels on ${new Date(billingState.subscription.currentPeriodEnd).toLocaleDateString()}`
+                  : billingState?.subscription
+                    ? `Renews on ${new Date(billingState.subscription.currentPeriodEnd).toLocaleDateString()}`
+                    : "Resets monthly."}
+              </div>
+            </div>
+            <Button variant="secondary" onClick={() => navigate("pricing")}>
+              View Pricing
+            </Button>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <UsageCard label="Text AI Credits" value={`${user.credits} / ${user.creditsMax}`} />
+            <UsageCard label="Video Credits" value={`${user.videoCredits} / ${user.videoCreditsMax}`} />
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
             {user.plan === "free" ? (
-              <Button variant="primary" className="w-full" onClick={() => navigate("pricing")}>
-                💎 Upgrade plan
-              </Button>
+              <Button onClick={() => navigate("pricing")}>Upgrade plan</Button>
             ) : (
-              <div className="space-y-2">
-                <Button variant="primary" className="w-full" onClick={() => navigate("pricing")}>
-                  Change plan
+              <>
+                <Button onClick={() => navigate("pricing")}>Change plan</Button>
+                <Button variant="secondary" onClick={() => void onManage()} loading={billingBusy}>
+                  {billingState?.fakeStripe ? "Cancel (fake)" : "Manage subscription"}
                 </Button>
-                <Button variant="secondary" className="w-full" loading={billingBusy} onClick={onManage}>
-                  {billingState?.fakeStripe ? "🧪 Cancel (fake)" : "Manage subscription"}
-                </Button>
-              </div>
+              </>
             )}
-            {billingState?.fakeStripe && (
-              <div className="text-[10px] text-amber-300/80 mt-2 text-center">FAKE_STRIPE mode</div>
-            )}
-          </Card>
+          </div>
+        </Card>
 
-          <Card>
-            <SectionTitle title="What's included" />
-            <ul className="space-y-2 text-[13px]">
-              {[
-                { ok: true, label: "All 15 generators" },
-                { ok: true, label: "Unlimited projects" },
-                { ok: true, label: "Saved library" },
-                { ok: false, label: "Brand voice profiles" },
-                { ok: false, label: "Stripe / Gmail integrations" },
-                { ok: false, label: "Workflow automations" },
-              ].map((f) => (
-                <li key={f.label} className="flex items-center gap-2">
-                  <span className={f.ok ? "text-emerald-400" : "text-white/25"}>{f.ok ? "✓" : "○"}</span>
-                  <span className={f.ok ? "text-white/85" : "text-white/45"}>{f.label}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </div>
+        <Card className="xl:col-span-2">
+          <SectionTitle title="Upgrade readiness" subtitle="What is available in the upgraded operating layer." />
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {[
+              { ok: true, label: "Existing generators and saved outputs" },
+              { ok: true, label: "Campaign Workspaces" },
+              { ok: true, label: "Brand Voice Profiles" },
+              { ok: true, label: "Chief of Staff Chat" },
+              { ok: true, label: "Workflow Templates" },
+              { ok: true, label: "Automations scheduler" },
+              { ok: user.videoCreditsMax > 0, label: "Premium Video Studio allowance" },
+              { ok: true, label: "Dashboard command center" },
+              { ok: true, label: "Separate text/video usage accounting" },
+            ].map((feature) => (
+              <div key={feature.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
+                <span className={feature.ok ? "text-emerald-300" : "text-white/35"}>
+                  {feature.ok ? "✓" : "○"}
+                </span>{" "}
+                {feature.label}
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
     </AppShell>
   );
 }
 
+function UsageCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/40 font-semibold">{label}</div>
+      <div className="mt-3 text-2xl font-semibold">{value}</div>
+    </div>
+  );
+}
+
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="mb-3">
-      <h2 className="text-white text-[15px] font-semibold">{title}</h2>
-      {subtitle && <div className="text-white/45 text-[12px] mt-0.5">{subtitle}</div>}
+    <div>
+      <h2 className="text-base font-semibold">{title}</h2>
+      {subtitle ? <p className="mt-1 text-sm text-white/45">{subtitle}</p> : null}
     </div>
   );
 }
