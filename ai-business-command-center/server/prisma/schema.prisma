@@ -8,22 +8,16 @@ datasource db {
 }
 
 model User {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  passwordHash      String
-  name              String?
-
-  // Text generation usage
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  passwordHash       String
+  name               String?
   plan               String   @default("free")
   credits            Int      @default(5)
   creditsMax         Int      @default(5)
-
-  // Premium video usage
   videoCredits       Int      @default(0)
   videoCreditsMax    Int      @default(0)
-
   stripeCustomerId   String?  @unique
-
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -43,53 +37,47 @@ model User {
 model Subscription {
   id                   String   @id @default(cuid())
   userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   stripeSubscriptionId String   @unique
   stripePriceId        String
   plan                 String
   status               String
-
   currentPeriodStart   DateTime
   currentPeriodEnd     DateTime
   cancelAtPeriodEnd    Boolean  @default(false)
-
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([stripeSubscriptionId])
 }
 
 model Project {
-  id                   String   @id @default(cuid())
-  userId               String
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String   @id @default(cuid())
+  userId              String
+  name                String
+  niche               String?
+  brandVoice          String?
+  emoji               String?
+  campaignGoal        String?
+  targetAudience      String?
+  offer               String?
+  campaignStatus      String?  @default("planning")
+  launchDate          DateTime?
+  brandVoiceProfileId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  name                 String
-  niche                String?
-  brandVoice           String?
-  emoji                String?
-
-  campaignGoal         String?
-  targetAudience       String?
-  offer                String?
-  campaignStatus       String?  @default("planning")
-  launchDate           DateTime?
-
-  brandVoiceProfileId  String?
-  brandVoiceProfile    BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
-
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  products             Product[]
-  outputs              Output[]
-  tasks                Task[]
-  chatConversations    ChatConversation[]
-  workflowRuns         WorkflowRun[]
-  automations          Automation[]
-  automationRuns       AutomationRun[]
-  videoJobs            VideoJob[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandVoiceProfile BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
+  products          Product[]
+  outputs           Output[]
+  tasks             Task[]
+  chatConversations ChatConversation[]
+  workflowRuns      WorkflowRun[]
+  automations       Automation[]
+  automationRuns    AutomationRun[]
+  videoJobs         VideoJob[]
 
   @@index([userId])
   @@index([brandVoiceProfileId])
@@ -99,8 +87,6 @@ model Project {
 model Product {
   id          String   @id @default(cuid())
   projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
   name        String
   description String
   audience    String?
@@ -109,37 +95,33 @@ model Product {
   price       String?
   offerType   String?
   cta         String?
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  outputs     Output[]
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outputs Output[]
 
   @@index([projectId])
 }
 
 model Output {
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  userId        String
+  projectId     String?
+  productId     String?
+  type          String
+  title         String
+  content       String
+  inputSnapshot Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  projectId      String?
-  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
-  productId      String?
-  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-
-  type           String
-  title          String
-  content        String
-  inputSnapshot  Json     @default("{}")
-
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  workflowSteps  WorkflowRunStep[]
-  automationRuns AutomationRun[]
-  sourceVideoJobs VideoJob[] @relation("VideoJobSourceOutput")
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project         Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  product         Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  workflowSteps   WorkflowRunStep[]
+  automationRuns  AutomationRun[]
+  sourceVideoJobs VideoJob[]        @relation("VideoJobSourceOutput")
 
   @@index([userId])
   @@index([projectId])
@@ -150,20 +132,18 @@ model Output {
 model Task {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   projectId   String?
-  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
   type        String
   status      String
   input       Json
   result      Json?
   tokensUsed  Int      @default(0)
   errorMsg    String?
-
   createdAt   DateTime @default(now())
   completedAt DateTime?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([projectId])
@@ -171,24 +151,22 @@ model Task {
 }
 
 model BrandVoiceProfile {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  userId           String
+  brandName        String
+  businessType     String?
+  targetAudience   String?
+  primaryOffer     String?
+  toneOfVoice      String?
+  valueProposition String?
+  preferredCtas    String?
+  bannedPhrases    String?
+  differentiators  String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  brandName         String
-  businessType      String?
-  targetAudience    String?
-  primaryOffer      String?
-  toneOfVoice       String?
-  valueProposition  String?
-  preferredCtas     String?
-  bannedPhrases     String?
-  differentiators   String?
-  notes             String?
-
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   projects          Project[]
   chatConversations ChatConversation[]
   workflowRuns      WorkflowRun[]
@@ -201,22 +179,18 @@ model BrandVoiceProfile {
 model ChatConversation {
   id                  String   @id @default(cuid())
   userId              String
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   projectId           String?
-  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
   brandVoiceProfileId String?
-  brandVoiceProfile   BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
-
   title               String?
   archivedAt          DateTime?
   lastMessageAt       DateTime?
-
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  messages            ChatMessage[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  brandVoiceProfile BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
+  messages          ChatMessage[]
 
   @@index([userId])
   @@index([projectId])
@@ -227,15 +201,14 @@ model ChatConversation {
 model ChatMessage {
   id             String   @id @default(cuid())
   conversationId String
-  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
   role           String
   content        String
   tokensUsed     Int      @default(0)
   model          String?
   metadata       Json?
-
   createdAt      DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([role])
@@ -244,30 +217,25 @@ model ChatMessage {
 model WorkflowRun {
   id                  String   @id @default(cuid())
   userId              String
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   projectId           String?
-  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
   brandVoiceProfileId String?
-  brandVoiceProfile   BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
-
   templateId          String
   title               String
   status              String
   input               Json
   summary             String?
   creditsSpent        Int      @default(0)
-
   startedAt           DateTime @default(now())
   completedAt         DateTime?
-
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  steps               WorkflowRunStep[]
-  automationRuns      AutomationRun[]
-  sourceVideoJobs     VideoJob[] @relation("VideoJobSourceWorkflowRun")
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  brandVoiceProfile BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
+  steps             WorkflowRunStep[]
+  automationRuns    AutomationRun[]
+  sourceVideoJobs   VideoJob[]         @relation("VideoJobSourceWorkflowRun")
 
   @@index([userId])
   @@index([projectId])
@@ -279,11 +247,7 @@ model WorkflowRun {
 model WorkflowRunStep {
   id            String   @id @default(cuid())
   workflowRunId String
-  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
-
   outputId      String?
-  output        Output?  @relation(fields: [outputId], references: [id], onDelete: SetNull)
-
   stepKey       String
   stepLabel     String
   skill         String
@@ -292,12 +256,13 @@ model WorkflowRunStep {
   content       String?
   tokensUsed    Int      @default(0)
   errorMsg      String?
-
   startedAt     DateTime?
   completedAt   DateTime?
-
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  workflowRun WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  output      Output?     @relation(fields: [outputId], references: [id], onDelete: SetNull)
 
   @@index([workflowRunId])
   @@index([outputId])
@@ -307,38 +272,31 @@ model WorkflowRunStep {
 model Automation {
   id                  String   @id @default(cuid())
   userId              String
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   projectId           String?
-  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
   brandVoiceProfileId String?
-  brandVoiceProfile   BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
-
   name                String
   type                String
   cadence             String
   enabled             Boolean  @default(true)
-
   timezone            String
   dayOfWeek           Int?
   dayOfMonth          Int?
   hour                Int
   minute              Int
-
   config              Json
-
   lastRunAt           DateTime?
   nextRunAt           DateTime?
   lastStatus          String?
   lastError           String?
   failureCount        Int      @default(0)
   lockedUntil         DateTime?
-
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  runs                AutomationRun[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  brandVoiceProfile BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
+  runs              AutomationRun[]
 
   @@index([userId])
   @@index([projectId])
@@ -350,38 +308,29 @@ model Automation {
 model AutomationRun {
   id                  String   @id @default(cuid())
   automationId        String
-  automation          Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
-
   userId              String
-  user                User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   projectId           String?
-  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
   brandVoiceProfileId String?
-  brandVoiceProfile   BrandVoiceProfile? @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
-
   workflowRunId       String?
-  workflowRun         WorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
-
   outputId            String?
-  output              Output? @relation(fields: [outputId], references: [id], onDelete: SetNull)
-
   type                String
   trigger             String
   status              String
-
   creditsRequired     Int      @default(0)
   creditsSpent        Int      @default(0)
-
   result              Json?
   errorMsg            String?
-
   startedAt           DateTime?
   completedAt         DateTime?
-
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  automation        Automation          @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  brandVoiceProfile BrandVoiceProfile?  @relation(fields: [brandVoiceProfileId], references: [id], onDelete: SetNull)
+  workflowRun       WorkflowRun?        @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  output            Output?             @relation(fields: [outputId], references: [id], onDelete: SetNull)
 
   @@index([automationId])
   @@index([userId])
@@ -394,17 +343,9 @@ model AutomationRun {
 model VideoJob {
   id                  String   @id @default(cuid())
   userId              String
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   projectId           String?
-  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
   sourceOutputId      String?
-  sourceOutput        Output?  @relation("VideoJobSourceOutput", fields: [sourceOutputId], references: [id], onDelete: SetNull)
-
   sourceWorkflowRunId String?
-  sourceWorkflowRun   WorkflowRun? @relation("VideoJobSourceWorkflowRun", fields: [sourceWorkflowRunId], references: [id], onDelete: SetNull)
-
   title               String
   sourceType          String
   useCase             String
@@ -412,34 +353,31 @@ model VideoJob {
   durationSeconds     Int
   toneStyle           String
   cta                 String?
-
   promptBrief         String
-
   provider            String
   externalJobId       String?
   providerStatus      String?
   providerPayload     Json?
-
   status              String
   errorMsg            String?
-
   videoUrl            String?
   thumbnailUrl        String?
-
   submittedAt         DateTime?
   completedAt         DateTime?
   failedAt            DateTime?
-
   pollAttempts        Int      @default(0)
   lastPolledAt        DateTime?
   nextPollAt          DateTime?
   lockedUntil         DateTime?
-
   creditChargedAt     DateTime?
   creditRefundedAt    DateTime?
-
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sourceOutput      Output?       @relation("VideoJobSourceOutput", fields: [sourceOutputId], references: [id], onDelete: SetNull)
+  sourceWorkflowRun WorkflowRun?  @relation("VideoJobSourceWorkflowRun", fields: [sourceWorkflowRunId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([projectId])
@@ -452,18 +390,16 @@ model VideoJob {
 model UsageLedgerEntry {
   id            String   @id @default(cuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   bucket        String
   action        String
   amount        Int
   reason        String
-
   referenceType String?
   referenceId   String?
   metadata      Json?
-
   createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([bucket])
@@ -478,7 +414,6 @@ model WebhookEventReceipt {
   status          String
   errorMsg        String?
   processedAt     DateTime?
-
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
