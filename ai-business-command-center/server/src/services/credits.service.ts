@@ -1,43 +1,32 @@
-// Atomic credit accounting. Uses a Prisma transaction so credits can never
-// go negative under concurrent load.
+import {
+  ensureAvailableUsage,
+  getUsageSnapshot,
+  refundUsage,
+  reserveUsage,
+} from "./usage.service.js";
 
-import { prisma } from "../lib/prisma.js";
-import { errors } from "../lib/errors.js";
-
-/** Atomically decrement 1 credit. Throws 402 if user has none left. */
 export async function consumeCredit(userId: string): Promise<number> {
-  return prisma.$transaction(async (tx) => {
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      select: { credits: true },
-    });
-    if (!user) throw errors.unauthorized("Account not found");
-    if (user.credits <= 0) throw errors.paymentRequired("You're out of credits this month");
+  const result = await reserveUsage(userId, "text", 1, "legacy_consume_credit");
+  return result.remaining;
+}
 
-    const updated = await tx.user.update({
-      where: { id: userId },
-      data: { credits: { decrement: 1 } },
-      select: { credits: true },
-    });
-    return updated.credits;
-  });
+export async function refundCredit(userId: string): Promise<number> {
+  const result = await refundUsage(userId, "text", 1, "legacy_refund_credit");
+  return result.remaining;
+}
+
+export async function assertCreditsAvailable(userId: string, amount = 1) {
+  return ensureAvailableUsage(userId, "text", amount);
 }
 
 export async function getUsage(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { credits: true, creditsMax: true, plan: true },
-  });
-  if (!user) throw errors.unauthorized("Account not found");
-
-  const totalGenerations = await prisma.task.count({ where: { userId, status: "done" } });
-  const totalOutputs = await prisma.output.count({ where: { userId } });
+  const usage = await getUsageSnapshot(userId);
 
   return {
-    plan: user.plan,
-    creditsRemaining: user.credits,
-    creditsMax: user.creditsMax,
-    totalGenerations,
-    totalOutputs,
+    plan: usage.plan,
+    creditsRemaining: usage.textCreditsRemaining,
+    creditsMax: usage.textCreditsMax,
+    videoCreditsRemaining: usage.videoCreditsRemaining,
+    videoCreditsMax: usage.videoCreditsMax,
   };
 }
