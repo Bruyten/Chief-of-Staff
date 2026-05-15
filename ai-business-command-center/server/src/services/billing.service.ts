@@ -1,4 +1,11 @@
 import { prisma } from "../lib/prisma.js";
+import {
+  PLANS,
+  planFromStripePriceId,
+  type PlanId,
+} from "../lib/plans.js";
+import { recordPlanResetUsage } from "./usage.service.js";
+
 export async function applySubscriptionChange(args: {
   userId: string;
   stripeSubscriptionId: string;
@@ -7,11 +14,17 @@ export async function applySubscriptionChange(args: {
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
+  planOverride?: PlanId;
 }) {
-  const planId = planFromStripePriceId(args.stripePriceId) ?? "free";
+  const planId =
+    args.planOverride ??
+    planFromStripePriceId(args.stripePriceId) ??
+    "free";
 
   await prisma.subscription.upsert({
-    where: { userId: args.userId },
+    where: {
+      userId: args.userId,
+    },
     create: {
       userId: args.userId,
       stripeSubscriptionId: args.stripeSubscriptionId,
@@ -39,17 +52,26 @@ export async function applySubscriptionChange(args: {
 export async function downgradeToFree(userId: string) {
   await prisma.subscription.updateMany({
     where: { userId },
-    data: { status: "canceled" },
+    data: {
+      status: "canceled",
+      cancelAtPeriodEnd: false,
+    },
   });
 
   await syncUserPlan(userId, "free", false);
 }
 
-async function syncUserPlan(userId: string, planId: PlanId, resetCredits: boolean) {
+async function syncUserPlan(
+  userId: string,
+  planId: PlanId,
+  resetCredits: boolean,
+) {
   const plan = PLANS[planId];
 
   await prisma.user.update({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
     data: {
       plan: planId,
       creditsMax: plan.textCredits,
@@ -64,13 +86,21 @@ async function syncUserPlan(userId: string, planId: PlanId, resetCredits: boolea
   });
 
   if (resetCredits) {
-    await recordPlanResetUsage(userId, planId, plan.textCredits, plan.videoCredits);
+    await recordPlanResetUsage(
+      userId,
+      planId,
+      plan.textCredits,
+      plan.videoCredits,
+    );
   }
 }
 
 export async function resetMonthlyCredits() {
   const users = await prisma.user.findMany({
-    select: { id: true, plan: true },
+    select: {
+      id: true,
+      plan: true,
+    },
   });
 
   for (const user of users) {
@@ -78,7 +108,9 @@ export async function resetMonthlyCredits() {
     const plan = PLANS[planId] ?? PLANS.free;
 
     await prisma.user.update({
-      where: { id: user.id },
+      where: {
+        id: user.id,
+      },
       data: {
         credits: plan.textCredits,
         creditsMax: plan.textCredits,
@@ -87,6 +119,11 @@ export async function resetMonthlyCredits() {
       },
     });
 
-    await recordPlanResetUsage(user.id, planId, plan.textCredits, plan.videoCredits);
+    await recordPlanResetUsage(
+      user.id,
+      planId,
+      plan.textCredits,
+      plan.videoCredits,
+    );
   }
 }
