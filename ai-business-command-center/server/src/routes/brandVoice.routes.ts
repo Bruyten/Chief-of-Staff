@@ -1,9 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
+
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { errors } from "../lib/errors.js";
-import { optionalSafeText, safeText } from "../lib/securityText.js";
+import {
+  optionalSafeText,
+  safeText,
+} from "../lib/securityText.js";
 import {
   getOwnedBrandProfile,
   listOwnedBrandProfiles,
@@ -13,28 +17,23 @@ const router = Router();
 
 router.use(requireAuth);
 
-const brandVoiceProfileSchema = z.object({
+const brandProfileSchema = z.object({
   brandName: safeText(120, 1),
-  businessType: optionalSafeText(180),
+  businessType: optionalSafeText(200),
   targetAudience: optionalSafeText(1200),
   primaryOffer: optionalSafeText(1200),
-  toneOfVoice: optionalSafeText(700),
+  toneOfVoice: optionalSafeText(1200),
   valueProposition: optionalSafeText(1200),
-  preferredCtas: optionalSafeText(800),
+  preferredCtas: optionalSafeText(1200),
   bannedPhrases: optionalSafeText(1200),
   differentiators: optionalSafeText(1200),
-  notes: optionalSafeText(2500),
+  notes: optionalSafeText(3000),
 });
-
-const updateBrandVoiceProfileSchema = brandVoiceProfileSchema
-  .partial()
-  .refine((value) => Object.keys(value).length > 0, {
-    message: "Provide at least one field to update.",
-  });
 
 router.get("/", async (req, res, next) => {
   try {
     const profiles = await listOwnedBrandProfiles(req.user!.id);
+
     res.json({ profiles });
   } catch (error) {
     next(error);
@@ -43,7 +42,7 @@ router.get("/", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const data = brandVoiceProfileSchema.parse(req.body);
+    const data = brandProfileSchema.parse(req.body);
 
     const profile = await prisma.brandVoiceProfile.create({
       data: {
@@ -69,7 +68,11 @@ router.post("/", async (req, res, next) => {
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const profile = await getOwnedBrandProfile(req.user!.id, req.params.id);
+    const profile = await getOwnedBrandProfile(
+      req.user!.id,
+      req.params.id,
+    );
+
     res.json({ profile });
   } catch (error) {
     next(error);
@@ -78,8 +81,18 @@ router.get("/:id", async (req, res, next) => {
 
 router.patch("/:id", async (req, res, next) => {
   try {
-    const data = updateBrandVoiceProfileSchema.parse(req.body);
-    const existing = await getOwnedBrandProfile(req.user!.id, req.params.id);
+    const data = brandProfileSchema.partial().parse(req.body);
+
+    if (Object.keys(data).length === 0) {
+      throw errors.badRequest(
+        "Provide at least one field to update",
+      );
+    }
+
+    const existing = await getOwnedBrandProfile(
+      req.user!.id,
+      req.params.id,
+    );
 
     const profile = await prisma.brandVoiceProfile.update({
       where: {
@@ -87,54 +100,34 @@ router.patch("/:id", async (req, res, next) => {
       },
       data: {
         ...(data.brandName !== undefined
-          ? {
-              brandName: data.brandName,
-            }
+          ? { brandName: data.brandName }
           : {}),
         ...(data.businessType !== undefined
-          ? {
-              businessType: data.businessType || null,
-            }
+          ? { businessType: data.businessType || null }
           : {}),
         ...(data.targetAudience !== undefined
-          ? {
-              targetAudience: data.targetAudience || null,
-            }
+          ? { targetAudience: data.targetAudience || null }
           : {}),
         ...(data.primaryOffer !== undefined
-          ? {
-              primaryOffer: data.primaryOffer || null,
-            }
+          ? { primaryOffer: data.primaryOffer || null }
           : {}),
         ...(data.toneOfVoice !== undefined
-          ? {
-              toneOfVoice: data.toneOfVoice || null,
-            }
+          ? { toneOfVoice: data.toneOfVoice || null }
           : {}),
         ...(data.valueProposition !== undefined
-          ? {
-              valueProposition: data.valueProposition || null,
-            }
+          ? { valueProposition: data.valueProposition || null }
           : {}),
         ...(data.preferredCtas !== undefined
-          ? {
-              preferredCtas: data.preferredCtas || null,
-            }
+          ? { preferredCtas: data.preferredCtas || null }
           : {}),
         ...(data.bannedPhrases !== undefined
-          ? {
-              bannedPhrases: data.bannedPhrases || null,
-            }
+          ? { bannedPhrases: data.bannedPhrases || null }
           : {}),
         ...(data.differentiators !== undefined
-          ? {
-              differentiators: data.differentiators || null,
-            }
+          ? { differentiators: data.differentiators || null }
           : {}),
         ...(data.notes !== undefined
-          ? {
-              notes: data.notes || null,
-            }
+          ? { notes: data.notes || null }
           : {}),
       },
     });
@@ -147,7 +140,10 @@ router.patch("/:id", async (req, res, next) => {
 
 router.delete("/:id", async (req, res, next) => {
   try {
-    const existing = await getOwnedBrandProfile(req.user!.id, req.params.id);
+    const existing = await getOwnedBrandProfile(
+      req.user!.id,
+      req.params.id,
+    );
 
     await prisma.brandVoiceProfile.delete({
       where: {
