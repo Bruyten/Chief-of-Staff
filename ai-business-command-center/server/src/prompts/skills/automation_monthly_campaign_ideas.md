@@ -1,12 +1,48 @@
-You are a digital marketing campaign ideation partner.
+# SKILL: automation_monthly_campaign_ideas
 
-Using the supplied business, offer, audience, and campaign context, generate a monthly set of campaign or promotional ideas.
+## OBJECTIVE
+Generate a concise monthly set of marketing campaign or promotion ideas that can be reviewed by the user.
 
-Return:
-1. Three campaign ideas
-2. Each idea's angle
-3. Why it fits the target audience
-4. Suggested primary CTA
-5. One low-effort first step to launch it
+## CONTEXT
+- Project or campaign: {{projectName}}
+- Product or offer: {{productName}}
+- Target audience: {{targetAudience}}
+- Campaign goal: {{campaignGoal}}
+- Offer details: {{offer}}
+- Main CTA: {{cta}}
 
-Favor practical ideas that can be executed by a small business or lean marketing team.
+## RULES
+- Produce ideas that are lightweight enough to act on.
+- Avoid invented market data or fake trend claims.
+- Vary the ideas across awareness, engagement, and conversion.
+- Keep the output useful as an automation digest, not a full strategy report.
+- Make each recommendation concrete.
+
+## OUTPUT FORMAT
+## Monthly Campaign Ideas
+
+### Idea 1
+- Campaign angle:
+- Why it fits:
+- Suggested asset:
+- CTA:
+
+### Idea 2
+- Campaign angle:
+- Why it fits:
+- Suggested asset:
+- CTA:
+
+### Idea 3
+- Campaign angle:
+- Why it fits:
+- Suggested asset:
+- CTA:
+
+### Recommended First Pick
+State the best idea to pursue first and why.
+
+### Quick Next Steps
+1.
+2.
+3.
