@@ -22,6 +22,7 @@ const userSelect = {
   id: true,
   email: true,
   name: true,
+  role: true,
   plan: true,
   credits: true,
   creditsMax: true,
@@ -58,8 +59,12 @@ router.post("/signup", authLimiter, async (req, res, next) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     const existing = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true },
+      where: {
+        email: normalizedEmail,
+      },
+      select: {
+        id: true,
+      },
     });
 
     if (existing) {
@@ -98,7 +103,9 @@ router.post("/login", authLimiter, async (req, res, next) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     const userWithPassword = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
+      where: {
+        email: normalizedEmail,
+      },
       select: {
         id: true,
         email: true,
@@ -120,7 +127,9 @@ router.post("/login", authLimiter, async (req, res, next) => {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: userWithPassword.id },
+      where: {
+        id: userWithPassword.id,
+      },
       select: userSelect,
     });
 
@@ -156,7 +165,9 @@ router.post("/logout", async (_req, res) => {
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
+      where: {
+        id: req.user!.id,
+      },
       select: userSelect,
     });
 
