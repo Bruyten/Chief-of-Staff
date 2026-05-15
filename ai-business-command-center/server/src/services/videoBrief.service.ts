@@ -1,12 +1,131 @@
 import { prisma } from "../lib/prisma.js";
+import { errors } from "../lib/errors.js";
+
+export type VideoStudioCreateInput = {
+  title: string;
+  sourceType: "scratch" | "project" | "output" | "workflow_run";
+  projectId?: string | null;
+  sourceOutputId?: string | null;
+  sourceWorkflowRunId?: string | null;
+  useCase:
+    | "promo_ad"
+    | "product_highlight"
+    | "offer_announcement"
+    | "social_reel";
+  aspectRatio: "9:16" | "1:1" | "16:9";
+  durationSeconds: 6 | 8 | 12;
+  toneStyle: string;
+  cta?: string;
+};
+
+function clip(value: string | null | undefined, max: number) {
+  const clean = (value ?? "").trim();
+
+  if (clean.length <= max) {
+    return clean;
   }
 
-  if (input.sourceType === "workflow_run" && !sourceWorkflowRun) {
-    throw errors.notFound("Selected workflow run was not found");
+  return `${clean.slice(0, max).trim()}…`;
+}
+
+function useCaseLabel(input: VideoStudioCreateInput["useCase"]) {
+  switch (input) {
+    case "promo_ad":
+      return "Promo ad";
+    case "product_highlight":
+      return "Product highlight";
+    case "offer_announcement":
+      return "Offer announcement";
+    case "social_reel":
+      return "Social reel";
+    default:
+      return "Marketing video";
+  }
+}
+
+export async function buildVideoPromptBrief(
+  userId: string,
+  input: VideoStudioCreateInput,
+) {
+  const project = input.projectId
+    ? await prisma.project.findFirst({
+        where: {
+          id: input.projectId,
+          userId,
+        },
+        include: {
+          brandVoiceProfile: true,
+        },
+      })
+    : null;
+
+  if (input.projectId && !project) {
+    throw errors.notFound("Selected project was not found");
   }
 
-  if (sourceOutput?.projectId && project && sourceOutput.projectId !== project.id) {
-    throw errors.badRequest("Selected output does not belong to the selected project");
+  const sourceOutput = input.sourceOutputId
+    ? await prisma.output.findFirst({
+        where: {
+          id: input.sourceOutputId,
+          userId,
+        },
+      })
+    : null;
+
+  if (input.sourceType === "output" && !sourceOutput) {
+    throw errors.notFound("Selected saved output was not found");
+  }
+
+  const sourceWorkflowRun = input.sourceWorkflowRunId
+    ? await prisma.workflowRun.findFirst({
+        where: {
+          id: input.sourceWorkflowRunId,
+          userId,
+        },
+        include: {
+          steps: {
+            where: {
+              status: "done",
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+            select: {
+              stepLabel: true,
+              content: true,
+            },
+          },
+        },
+      })
+    : null;
+
+  if (
+    input.sourceType === "workflow_run" &&
+    !sourceWorkflowRun
+  ) {
+    throw errors.notFound(
+      "Selected workflow run was not found",
+    );
+  }
+
+  if (
+    sourceOutput?.projectId &&
+    project &&
+    sourceOutput.projectId !== project.id
+  ) {
+    throw errors.badRequest(
+      "Selected output does not belong to the selected project",
+    );
+  }
+
+  if (
+    sourceWorkflowRun?.projectId &&
+    project &&
+    sourceWorkflowRun.projectId !== project.id
+  ) {
+    throw errors.badRequest(
+      "Selected workflow run does not belong to the selected project",
+    );
   }
 
   const lines: string[] = [
@@ -35,7 +154,7 @@ import { prisma } from "../lib/prisma.js";
       `- Campaign goal: ${project.campaignGoal || "(not provided)"}`,
       `- Target audience: ${project.targetAudience || "(not provided)"}`,
       `- Offer: ${project.offer || "(not provided)"}`,
-      `- Status: ${project.campaignStatus || "planning"}`
+      `- Status: ${project.campaignStatus || "planning"}`,
     );
 
     if (project.brandVoiceProfile) {
@@ -46,7 +165,7 @@ import { prisma } from "../lib/prisma.js";
         `- Tone: ${project.brandVoiceProfile.toneOfVoice || "(not provided)"}`,
         `- Value proposition: ${project.brandVoiceProfile.valueProposition || "(not provided)"}`,
         `- Preferred CTAs: ${project.brandVoiceProfile.preferredCtas || "(not provided)"}`,
-        `- Avoid: ${project.brandVoiceProfile.bannedPhrases || "(not provided)"}`
+        `- Avoid: ${project.brandVoiceProfile.bannedPhrases || "(not provided)"}`,
       );
     }
   }
@@ -58,7 +177,7 @@ import { prisma } from "../lib/prisma.js";
       `- Title: ${sourceOutput.title}`,
       `- Type: ${sourceOutput.type}`,
       "- Excerpt:",
-      clip(sourceOutput.content, 1800)
+      clip(sourceOutput.content, 1800),
     );
   }
 
@@ -67,13 +186,17 @@ import { prisma } from "../lib/prisma.js";
       "",
       "Source workflow run:",
       `- Workflow: ${sourceWorkflowRun.title}`,
-      `- Status: ${sourceWorkflowRun.status}`
+      `- Status: ${sourceWorkflowRun.status}`,
     );
 
     if (sourceWorkflowRun.steps.length) {
       lines.push("- Successful step excerpts:");
+
       sourceWorkflowRun.steps.forEach((step, index) => {
-        lines.push(`${index + 1}. ${step.stepLabel}\n${clip(step.content, 1200)}`);
+        lines.push(
+          `${index + 1}. ${step.stepLabel}`,
+          clip(step.content, 1200),
+        );
       });
     }
   }
@@ -81,7 +204,7 @@ import { prisma } from "../lib/prisma.js";
   lines.push(
     "",
     "Output intent:",
-    "Use the above material to generate a concise, visually coherent short marketing video."
+    "Use the above material to generate a concise, visually coherent short marketing video.",
   );
 
   return {
