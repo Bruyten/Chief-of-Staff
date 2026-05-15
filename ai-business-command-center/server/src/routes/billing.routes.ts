@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { errors } from "../lib/errors.js";
@@ -11,7 +12,10 @@ import {
   createPortalSession,
   isFakeStripe,
 } from "../lib/stripeClient.js";
-import { applySubscriptionChange, downgradeToFree } from "../services/billing.service.js";
+import {
+  applySubscriptionChange,
+  downgradeToFree,
+} from "../services/billing.service.js";
 import { getUsageSnapshot } from "../services/usage.service.js";
 
 const router = Router();
@@ -36,10 +40,12 @@ router.get("/me", async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { stripeCustomerId: true },
+      select: {
+        stripeCustomerId: true,
+      },
     });
 
-    const sub = await prisma.subscription.findUnique({
+    const subscription = await prisma.subscription.findUnique({
       where: { userId: req.user!.id },
     });
 
@@ -52,17 +58,17 @@ router.get("/me", async (req, res, next) => {
       videoCredits: usage.videoCreditsRemaining,
       videoCreditsMax: usage.videoCreditsMax,
       hasStripeCustomer: !!user?.stripeCustomerId,
-      subscription: sub
+      subscription: subscription
         ? {
-            status: sub.status,
-            cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
-            currentPeriodEnd: sub.currentPeriodEnd,
+            status: subscription.status,
+            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+            currentPeriodEnd: subscription.currentPeriodEnd,
           }
         : null,
       fakeStripe: isFakeStripe(),
     });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -76,15 +82,23 @@ router.post("/checkout", async (req, res, next) => {
     const planConfig = PLANS[plan];
 
     if (!planConfig.stripePriceId && !isFakeStripe()) {
-      throw errors.badRequest(`No Stripe price ID configured for plan: ${plan}`);
+      throw errors.badRequest(
+        `No Stripe price ID configured for plan: ${plan}`,
+      );
     }
 
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { id: true, email: true, stripeCustomerId: true },
+      select: {
+        id: true,
+        email: true,
+        stripeCustomerId: true,
+      },
     });
 
-    if (!user) throw errors.unauthorized("Account not found");
+    if (!user) {
+      throw errors.unauthorized("Account not found");
+    }
 
     const customerId = await ensureCustomer({
       userId: user.id,
@@ -95,6 +109,101 @@ router.post("/checkout", async (req, res, next) => {
     if (customerId !== user.stripeCustomerId) {
       await prisma.user.update({
         where: { id: user.id },
-        data: { stripeCustomerId: customerId },
+        data: {
+          stripeCustomerId: customerId,
+        },
       });
+    }
+
+    const session = await createCheckoutSession({
+      customerId,
+      priceId: planConfig.stripePriceId || `fake-price-${plan}`,
+      successUrl: env.BILLING_SUCCESS_URL,
+      cancelUrl: env.BILLING_CANCEL_URL,
+      userId: user.id,
+    });
+
+    res.json({
+      url: session.url,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/portal", async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        stripeCustomerId: true,
+      },
+    });
+
+    if (!user?.stripeCustomerId) {
+      throw errors.badRequest(
+        "No Stripe customer exists for this account yet",
+      );
+    }
+
+    const session = await createPortalSession({
+      customerId: user.stripeCustomerId,
+      returnUrl: env.CLIENT_ORIGIN,
+    });
+
+    res.json({
+      url: session.url,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/simulate-success", async (req, res, next) => {
+  try {
+    if (!isFakeStripe()) {
+      throw errors.forbidden(
+        "Fake billing simulation is disabled in live Stripe mode",
+      );
+    }
+
+    const { plan } = checkoutSchema.parse(req.body);
+    const now = new Date();
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+    await applySubscriptionChange({
+      userId: req.user!.id,
+      stripeSubscriptionId: `sub_fake_${req.user!.id}_${Date.now()}`,
+      stripePriceId:
+        PLANS[plan].stripePriceId || `fake-price-${plan}`,
+      status: "active",
+      currentPeriodStart: now,
+      currentPeriodEnd: nextMonth,
+      cancelAtPeriodEnd: false,
+      planOverride: plan,
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/simulate-cancel", async (req, res, next) => {
+  try {
+    if (!isFakeStripe()) {
+      throw errors.forbidden(
+        "Fake billing simulation is disabled in live Stripe mode",
+      );
+    }
+
+    await downgradeToFree(req.user!.id);
+
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
