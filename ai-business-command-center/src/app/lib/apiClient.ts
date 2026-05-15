@@ -9,13 +9,13 @@ export type ApiError = {
   status: number;
   code: string;
   message: string;
-  fields?: Record<string, string[] | undefined>;
+  fields?: Record<string, string[]>;
 };
 
 export class ApiException extends Error {
   status: number;
   code: string;
-  fields?: Record<string, string[] | undefined>;
+  fields?: Record<string, string[]>;
 
   constructor(err: ApiError) {
     super(err.message);
@@ -32,41 +32,66 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
-function readCookie(name: string) {
-  const prefix = `${name}=`;
-  const value = document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(prefix));
+let csrfTokenCache = "";
 
-  return value ? decodeURIComponent(value.slice(prefix.length)) : "";
-}
-
-async function ensureCsrfCookie() {
-  const existing = readCookie("cos_csrf");
-  if (existing) return existing;
-
-  await fetch(`${BASE_URL}/api/auth/csrf`, {
+async function refreshCsrfToken(): Promise<string> {
+  const response = await fetch(`${BASE_URL}/api/auth/csrf`, {
     method: "GET",
     credentials: "include",
   });
 
-  return readCookie("cos_csrf");
+  if (!response.ok) {
+    throw new ApiException({
+      status: response.status,
+      code: "CSRF_TOKEN_FETCH_FAILED",
+      message: "Could not initialize request security. Please refresh and try again.",
+    });
+  }
+
+  const payload = (await response.json()) as {
+    ok?: boolean;
+    token?: string;
+  };
+
+  if (!payload.token) {
+    throw new ApiException({
+      status: 500,
+      code: "CSRF_TOKEN_MISSING",
+      message: "Request security token was not returned by the server.",
+    });
+  }
+
+  csrfTokenCache = payload.token;
+  return csrfTokenCache;
 }
 
-export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+async function getCsrfToken(): Promise<string> {
+  if (csrfTokenCache) {
+    return csrfTokenCache;
+  }
+
+  return refreshCsrfToken();
+}
+
+export async function api<T = unknown>(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<T> {
   const { method = "GET", body, signal } = opts;
   const mutating = method !== "GET";
-  const csrfToken = mutating ? await ensureCsrfCookie() : "";
+  const csrfToken = mutating ? await getCsrfToken() : "";
 
   let res: Response;
+
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       credentials: "include",
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(mutating && csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        ...(mutating && csrfToken
+          ? { "X-CSRF-Token": csrfToken }
+          : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       signal,
@@ -75,14 +100,44 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
     throw new ApiException({
       status: 0,
       code: "NETWORK",
-      message: "Can't reach the server. Check your connection.",
+      message: "Can't reach the server.\nCheck your connection.",
     });
   }
 
-  if (res.status === 204) return undefined as T;
+  /**
+   * If the cached CSRF token becomes stale after a login/logout/redeploy,
+   * refresh it once and retry the mutating request.
+   */
+  if (res.status === 403 && mutating) {
+    const freshToken = await refreshCsrfToken();
+
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method,
+        credentials: "include",
+        headers: {
+          ...(body ? { "Content-Type": "application/json" } : {}),
+          "X-CSRF-Token": freshToken,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal,
+      });
+    } catch {
+      throw new ApiException({
+        status: 0,
+        code: "NETWORK",
+        message: "Can't reach the server.\nCheck your connection.",
+      });
+    }
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
 
   let payload: unknown = null;
   const text = await res.text();
+
   if (text) {
     try {
       payload = JSON.parse(text);
@@ -92,7 +147,12 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   }
 
   if (!res.ok) {
-    const errBody = (payload as { error?: Partial<ApiError> } | null)?.error;
+    const errBody = (
+      payload as {
+        error?: Partial<ApiError>;
+      } | null
+    )?.error;
+
     throw new ApiException({
       status: res.status,
       code: errBody?.code ?? "ERROR",
@@ -108,6 +168,7 @@ export type User = {
   id: string;
   email: string;
   name: string | null;
+  role: "user" | "admin" | "owner";
   plan: "free" | "starter" | "pro" | "agency";
   credits: number;
   creditsMax: number;
@@ -144,7 +205,10 @@ export type Project = {
   campaignStatus: "planning" | "active" | "paused" | "completed" | null;
   launchDate: string | null;
   brandVoiceProfileId: string | null;
-  brandVoiceProfile?: { id: string; brandName: string } | BrandVoiceProfile | null;
+  brandVoiceProfile?:
+    | { id: string; brandName: string }
+    | BrandVoiceProfile
+    | null;
   productCount: number;
   outputCount: number;
   workflowRunCount?: number;
@@ -282,7 +346,10 @@ export type Automation = {
   projectId: string | null;
   brandVoiceProfileId: string | null;
   name: string;
-  type: "weekly_content_plan" | "monthly_campaign_ideas" | "weekly_task_recommendation";
+  type:
+    | "weekly_content_plan"
+    | "monthly_campaign_ideas"
+    | "weekly_task_recommendation";
   cadence: "weekly" | "monthly";
   enabled: boolean;
   timezone: string;
@@ -332,7 +399,11 @@ export type VideoJob = {
   sourceWorkflowRunId: string | null;
   title: string;
   sourceType: "scratch" | "project" | "output" | "workflow_run";
-  useCase: "promo_ad" | "product_highlight" | "offer_announcement" | "social_reel";
+  useCase:
+    | "promo_ad"
+    | "product_highlight"
+    | "offer_announcement"
+    | "social_reel";
   aspectRatio: "9:16" | "1:1" | "16:9";
   durationSeconds: 6 | 8 | 12;
   toneStyle: string;
@@ -375,7 +446,7 @@ export type DashboardCommandCenter = {
       | "chief-chat"
       | "projects"
       | "saved-outputs";
-    actionParams?: Record<string, string>;
+    actionParams?: Record<string, unknown>;
   }>;
   activeAutomations: Array<{
     id: string;
@@ -436,16 +507,34 @@ export type DashboardCommandCenter = {
 
 export const auth = {
   signup: (data: { email: string; password: string; name?: string }) =>
-    api<{ user: User }>("/api/auth/signup", { method: "POST", body: data }),
+    api<{ user: User }>("/api/auth/signup", {
+      method: "POST",
+      body: data,
+    }),
+
   login: (data: { email: string; password: string }) =>
-    api<{ user: User }>("/api/auth/login", { method: "POST", body: data }),
-  logout: () => api<{ ok: true }>("/api/auth/logout", { method: "POST" }),
+    api<{ user: User }>("/api/auth/login", {
+      method: "POST",
+      body: data,
+    }),
+
+  logout: async () => {
+    const result = await api<{ ok: true }>("/api/auth/logout", {
+      method: "POST",
+    });
+
+    csrfTokenCache = "";
+    return result;
+  },
+
   me: () => api<{ user: User }>("/api/auth/me"),
 };
 
 export const projects = {
   list: () => api<{ projects: Project[] }>("/api/projects"),
+
   get: (id: string) => api<{ project: Project }>(`/api/projects/${id}`),
+
   create: (data: {
     name: string;
     niche?: string;
@@ -457,7 +546,12 @@ export const projects = {
     campaignStatus?: "planning" | "active" | "paused" | "completed";
     launchDate?: string;
     brandVoiceProfileId?: string | null;
-  }) => api<{ project: Project }>("/api/projects", { method: "POST", body: data }),
+  }) =>
+    api<{ project: Project }>("/api/projects", {
+      method: "POST",
+      body: data,
+    }),
+
   update: (
     id: string,
     data: Partial<{
@@ -471,20 +565,38 @@ export const projects = {
       campaignStatus: "planning" | "active" | "paused" | "completed";
       launchDate: string;
       brandVoiceProfileId: string | null;
-    }>
-  ) => api<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: data }),
-  delete: (id: string) => api<{ ok: true }>(`/api/projects/${id}`, { method: "DELETE" }),
+    }>,
+  ) =>
+    api<{ project: Project }>(`/api/projects/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
+
+  delete: (id: string) =>
+    api<{ ok: true }>(`/api/projects/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 export const outputs = {
-  list: (params?: { projectId?: string; type?: string; search?: string }) => {
+  list: (params?: {
+    projectId?: string;
+    type?: string;
+    search?: string;
+  }) => {
     const q = new URLSearchParams();
+
     if (params?.projectId) q.set("projectId", params.projectId);
     if (params?.type) q.set("type", params.type);
     if (params?.search) q.set("search", params.search);
+
     const qs = q.toString();
-    return api<{ outputs: Output[] }>(`/api/outputs${qs ? `?${qs}` : ""}`);
+
+    return api<{ outputs: Output[] }>(
+      `/api/outputs${qs ? `?${qs}` : ""}`,
+    );
   },
+
   create: (data: {
     projectId?: string;
     productId?: string;
@@ -492,20 +604,41 @@ export const outputs = {
     title: string;
     content: string;
     inputSnapshot?: Record<string, unknown>;
-  }) => api<{ output: Output }>("/api/outputs", { method: "POST", body: data }),
+  }) =>
+    api<{ output: Output }>("/api/outputs", {
+      method: "POST",
+      body: data,
+    }),
+
   update: (id: string, data: { title?: string; content?: string }) =>
-    api<{ output: Output }>(`/api/outputs/${id}`, { method: "PATCH", body: data }),
-  delete: (id: string) => api<{ ok: true }>(`/api/outputs/${id}`, { method: "DELETE" }),
+    api<{ output: Output }>(`/api/outputs/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
+
+  delete: (id: string) =>
+    api<{ ok: true }>(`/api/outputs/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 export const generate = {
-  run: (skill: string, data: { projectId?: string; context: Record<string, unknown> }) =>
-    api<GenerateResult>(`/api/generate/${skill}`, { method: "POST", body: data }),
+  run: (
+    skill: string,
+    data: { projectId?: string; context: Record<string, unknown> },
+  ) =>
+    api<GenerateResult>(`/api/generate/${skill}`, {
+      method: "POST",
+      body: data,
+    }),
 };
 
 export const account = {
   updateProfile: (data: { name: string }) =>
-    api<{ user: User }>("/api/account/profile", { method: "PATCH", body: data }),
+    api<{ user: User }>("/api/account/profile", {
+      method: "PATCH",
+      body: data,
+    }),
 };
 
 export type BillingPlan = {
@@ -533,37 +666,85 @@ export type BillingMe = {
 };
 
 export const billing = {
-  plans: () => api<{ plans: BillingPlan[]; fakeStripe: boolean }>("/api/billing/plans"),
+  plans: () =>
+    api<{ plans: BillingPlan[]; fakeStripe: boolean }>("/api/billing/plans"),
+
   me: () => api<BillingMe>("/api/billing/me"),
+
   checkout: (plan: "starter" | "pro" | "agency") =>
-    api<{ url: string }>("/api/billing/checkout", { method: "POST", body: { plan } }),
-  portal: () => api<{ url: string }>("/api/billing/portal", { method: "POST" }),
+    api<{ url: string }>("/api/billing/checkout", {
+      method: "POST",
+      body: { plan },
+    }),
+
+  portal: () =>
+    api<{ url: string }>("/api/billing/portal", {
+      method: "POST",
+    }),
+
   simulateSuccess: (plan: "starter" | "pro" | "agency") =>
-    api<{ ok: true }>("/api/billing/simulate-success", { method: "POST", body: { plan } }),
-  simulateCancel: () => api<{ ok: true }>("/api/billing/simulate-cancel", { method: "POST" }),
+    api<{ ok: true }>("/api/billing/simulate-success", {
+      method: "POST",
+      body: { plan },
+    }),
+
+  simulateCancel: () =>
+    api<{ ok: true }>("/api/billing/simulate-cancel", {
+      method: "POST",
+    }),
 };
 
 export const brandVoices = {
   list: () => api<{ profiles: BrandVoiceProfile[] }>("/api/brand-voices"),
-  get: (id: string) => api<{ profile: BrandVoiceProfile }>(`/api/brand-voices/${id}`),
+
+  get: (id: string) =>
+    api<{ profile: BrandVoiceProfile }>(`/api/brand-voices/${id}`),
+
   create: (data: Partial<BrandVoiceProfile> & { brandName: string }) =>
-    api<{ profile: BrandVoiceProfile }>("/api/brand-voices", { method: "POST", body: data }),
+    api<{ profile: BrandVoiceProfile }>("/api/brand-voices", {
+      method: "POST",
+      body: data,
+    }),
+
   update: (id: string, data: Partial<BrandVoiceProfile>) =>
-    api<{ profile: BrandVoiceProfile }>(`/api/brand-voices/${id}`, { method: "PATCH", body: data }),
-  delete: (id: string) => api<{ ok: true }>(`/api/brand-voices/${id}`, { method: "DELETE" }),
+    api<{ profile: BrandVoiceProfile }>(`/api/brand-voices/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
+
+  delete: (id: string) =>
+    api<{ ok: true }>(`/api/brand-voices/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 export const chiefChat = {
   list: () => api<{ conversations: ChatConversation[] }>("/api/chat/conversations"),
-  get: (id: string) => api<{ conversation: ChatConversation }>(`/api/chat/conversations/${id}`),
+
+  get: (id: string) =>
+    api<{ conversation: ChatConversation }>(`/api/chat/conversations/${id}`),
+
   create: (data: {
     title?: string;
     projectId?: string | null;
     brandVoiceProfileId?: string | null;
-  }) => api<{ conversation: ChatConversation }>("/api/chat/conversations", { method: "POST", body: data }),
+  }) =>
+    api<{ conversation: ChatConversation }>("/api/chat/conversations", {
+      method: "POST",
+      body: data,
+    }),
+
   update: (id: string, data: { title?: string; archived?: boolean }) =>
-    api<{ conversation: ChatConversation }>(`/api/chat/conversations/${id}`, { method: "PATCH", body: data }),
-  delete: (id: string) => api<{ ok: true }>(`/api/chat/conversations/${id}`, { method: "DELETE" }),
+    api<{ conversation: ChatConversation }>(`/api/chat/conversations/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
+
+  delete: (id: string) =>
+    api<{ ok: true }>(`/api/chat/conversations/${id}`, {
+      method: "DELETE",
+    }),
+
   sendMessage: (id: string, content: string) =>
     api<{
       userMessage: ChatMessage;
@@ -577,20 +758,31 @@ export const chiefChat = {
 
 export const workflows = {
   templates: () => api<{ templates: WorkflowTemplate[] }>("/api/workflows/templates"),
+
   runs: () => api<{ runs: WorkflowRun[] }>("/api/workflows/runs"),
-  getRun: (id: string) => api<{ run: WorkflowRun }>(`/api/workflows/runs/${id}`),
+
+  getRun: (id: string) =>
+    api<{ run: WorkflowRun }>(`/api/workflows/runs/${id}`),
+
   createRun: (data: {
     templateId: string;
     title?: string;
     projectId?: string | null;
     brandVoiceProfileId?: string | null;
     context: Record<string, unknown>;
-  }) => api<{ run: WorkflowRun }>("/api/workflows/runs", { method: "POST", body: data }),
+  }) =>
+    api<{ run: WorkflowRun }>("/api/workflows/runs", {
+      method: "POST",
+      body: data,
+    }),
 };
 
 export const automations = {
   list: () => api<{ automations: Automation[] }>("/api/automations"),
-  get: (id: string) => api<{ automation: Automation }>(`/api/automations/${id}`),
+
+  get: (id: string) =>
+    api<{ automation: Automation }>(`/api/automations/${id}`),
+
   create: (data: {
     name: string;
     type: Automation["type"];
@@ -602,26 +794,53 @@ export const automations = {
     hour: number;
     minute: number;
     config: Record<string, unknown>;
-  }) => api<{ automation: Automation }>("/api/automations", { method: "POST", body: data }),
+  }) =>
+    api<{ automation: Automation }>("/api/automations", {
+      method: "POST",
+      body: data,
+    }),
+
   update: (id: string, data: Partial<Automation>) =>
-    api<{ automation: Automation }>(`/api/automations/${id}`, { method: "PATCH", body: data }),
-  delete: (id: string) => api<{ ok: true }>(`/api/automations/${id}`, { method: "DELETE" }),
+    api<{ automation: Automation }>(`/api/automations/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
+
+  delete: (id: string) =>
+    api<{ ok: true }>(`/api/automations/${id}`, {
+      method: "DELETE",
+    }),
+
   enable: (id: string) =>
-    api<{ automation: Automation }>(`/api/automations/${id}/enable`, { method: "POST" }),
+    api<{ automation: Automation }>(`/api/automations/${id}/enable`, {
+      method: "POST",
+    }),
+
   disable: (id: string) =>
-    api<{ automation: Automation }>(`/api/automations/${id}/disable`, { method: "POST" }),
+    api<{ automation: Automation }>(`/api/automations/${id}/disable`, {
+      method: "POST",
+    }),
+
   runNow: (id: string) =>
-    api<{ run: AutomationRun }>(`/api/automations/${id}/run-now`, { method: "POST" }),
-  runs: (id: string) => api<{ runs: AutomationRun[] }>(`/api/automations/${id}/runs`),
+    api<{ run: AutomationRun }>(`/api/automations/${id}/run-now`, {
+      method: "POST",
+    }),
+
+  runs: (id: string) =>
+    api<{ runs: AutomationRun[] }>(`/api/automations/${id}/runs`),
 };
 
 export const dashboard = {
-  commandCenter: () => api<DashboardCommandCenter>("/api/dashboard/command-center"),
+  commandCenter: () =>
+    api<DashboardCommandCenter>("/api/dashboard/command-center"),
 };
 
 export const videoStudio = {
   jobs: () => api<{ jobs: VideoJob[] }>("/api/video-studio/jobs"),
-  get: (id: string) => api<{ job: VideoJob }>(`/api/video-studio/jobs/${id}`),
+
+  get: (id: string) =>
+    api<{ job: VideoJob }>(`/api/video-studio/jobs/${id}`),
+
   create: (data: {
     title: string;
     sourceType: VideoJob["sourceType"];
@@ -634,28 +853,35 @@ export const videoStudio = {
     toneStyle: string;
     cta?: string;
   }) =>
-    api<{ job: VideoJob; videoCreditsRemaining: number }>("/api/video-studio/jobs", {
-      method: "POST",
-      body: data,
-    }),
+    api<{ job: VideoJob; videoCreditsRemaining: number }>(
+      "/api/video-studio/jobs",
+      {
+        method: "POST",
+        body: data,
+      },
+    ),
+
   refresh: (id: string) =>
-    api<{ job: VideoJob }>(`/api/video-studio/jobs/${id}/refresh`, { method: "POST" }),
+    api<{ job: VideoJob }>(`/api/video-studio/jobs/${id}/refresh`, {
+      method: "POST",
+    }),
 };
 
 export function friendlyError(e: unknown): string {
   if (e instanceof ApiException) {
     switch (e.code) {
       case "NETWORK":
-        return "Can't reach the server. Is it running?";
+        return "Can't reach the server.\nIs it running?";
       case "VALIDATION":
         return "Please check the highlighted fields.";
       case "UNAUTHORIZED":
         return "Your session expired. Please sign in again.";
       case "FORBIDDEN":
-        return "You do not have permission to do that.";
+        return e.message || "You do not have permission to do that.";
       case "NOT_FOUND":
         return "That item could not be found.";
       case "PAYMENT_REQUIRED":
+      case "OUT_OF_CREDITS":
         return e.message;
       case "RATE_LIMITED":
         return e.message;
