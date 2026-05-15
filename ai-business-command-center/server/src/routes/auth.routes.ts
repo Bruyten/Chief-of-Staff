@@ -43,6 +43,17 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+/**
+ * CSRF note for Render:
+ * The frontend and API are hosted on different onrender.com subdomains.
+ * A browser page on the frontend domain cannot read document.cookie values
+ * set for the API domain. Therefore we return the generated CSRF token in
+ * the JSON response as well as setting the cookie server-side.
+ *
+ * The backend still validates:
+ * 1. The API-domain CSRF cookie, and
+ * 2. The X-CSRF-Token request header.
+ */
 router.get("/csrf", (_req, res) => {
   const token = setCsrfCookie(res);
 
@@ -88,13 +99,9 @@ router.post("/signup", authLimiter, async (req, res, next) => {
     });
 
     res.cookie(COOKIE_NAME, token, cookieOptions);
+    setCsrfCookie(res);
 
-    const csrfToken = setCsrfCookie(res);
-
-    res.status(201).json({
-      user,
-      csrfToken,
-    });
+    res.status(201).json({ user });
   } catch (error) {
     next(error);
   }
@@ -147,13 +154,9 @@ router.post("/login", authLimiter, async (req, res, next) => {
     });
 
     res.cookie(COOKIE_NAME, token, cookieOptions);
+    setCsrfCookie(res);
 
-    const csrfToken = setCsrfCookie(res);
-
-    res.json({
-      user,
-      csrfToken,
-    });
+    res.json({ user });
   } catch (error) {
     next(error);
   }
