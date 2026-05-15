@@ -39,6 +39,23 @@ export type MockBrandVoiceSummary = {
   brandName: string;
 };
 
+export type MockBrandVoiceProfile = {
+  id: string;
+  userId: string;
+  brandName: string;
+  businessType: string | null;
+  targetAudience: string | null;
+  primaryOffer: string | null;
+  toneOfVoice: string | null;
+  valueProposition: string | null;
+  preferredCtas: string | null;
+  bannedPhrases: string | null;
+  differentiators: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type MockProject = {
   id: string;
   name: string;
@@ -97,6 +114,57 @@ export const mockUser: MockUser = {
   videoCreditsMax: 0,
 };
 
+export const mockBrandVoiceProfiles: MockBrandVoiceProfile[] = [
+  {
+    id: "bv_glow",
+    userId: "u_demo",
+    brandName: "Glow Skincare",
+    businessType: "Beauty / DTC",
+    targetAudience:
+      "Women 22–35 with adult acne, inconsistent routines, and product fatigue.",
+    primaryOffer:
+      "Glow Serum Bundle with a simple three-step nighttime routine.",
+    toneOfVoice:
+      "Calm, confident, reassuring, peer-to-peer, and never overhyped.",
+    valueProposition:
+      "A simplified routine for people who are tired of overcomplicated skincare.",
+    preferredCtas:
+      "Explore the bundle, see the routine, tap the link in bio.",
+    bannedPhrases:
+      "Miracle cure, guaranteed results, flawless overnight.",
+    differentiators:
+      "Routine simplicity, clearer positioning, lower decision fatigue.",
+    notes:
+      "Keep copy emotionally reassuring and focused on consistency over perfection.",
+    createdAt: "2026-02-01T10:00:00Z",
+    updatedAt: "2026-05-12T10:00:00Z",
+  },
+  {
+    id: "bv_sage",
+    userId: "u_demo",
+    brandName: "Sage & Save",
+    businessType: "Faith-based personal finance",
+    targetAudience:
+      "Christian moms managing tight one-income households.",
+    primaryOffer:
+      "Monthly budgeting membership with templates, coaching prompts, and routines.",
+    toneOfVoice:
+      "Warm, reassuring, practical, scripture-friendly without sounding preachy.",
+    valueProposition:
+      "A calmer way to build household budgeting habits without shame or overwhelm.",
+    preferredCtas:
+      "Download the free guide, try the membership, start your next budget reset.",
+    bannedPhrases:
+      "Get rich quick, passive income overnight, effortless wealth.",
+    differentiators:
+      "Faith-aware messaging, family-budget specificity, practical next steps.",
+    notes:
+      "Avoid guilt-based selling. Lead with relief, clarity, and stewardship.",
+    createdAt: "2026-01-12T10:00:00Z",
+    updatedAt: "2026-05-10T10:00:00Z",
+  },
+];
+
 export const mockProjects: MockProject[] = [
   {
     id: "p_skincare",
@@ -109,9 +177,12 @@ export const mockProjects: MockProject[] = [
     workflowRunCount: 2,
     chatCount: 4,
     automationCount: 1,
-    campaignGoal: "Increase serum bundle interest before the spring promotion.",
-    targetAudience: "Women 22–35 with adult acne or inconsistent routines.",
-    offer: "Glow Serum Bundle with a simple three-step nighttime routine.",
+    campaignGoal:
+      "Increase serum bundle interest before the spring promotion.",
+    targetAudience:
+      "Women 22–35 with adult acne or inconsistent routines.",
+    offer:
+      "Glow Serum Bundle with a simple three-step nighttime routine.",
     campaignStatus: "active",
     launchDate: "2026-05-20T00:00:00.000Z",
     brandVoiceProfileId: "bv_glow",
@@ -126,16 +197,20 @@ export const mockProjects: MockProject[] = [
     id: "p_budget",
     name: "Sage & Save Membership Push",
     niche: "Faith-based finance",
-    brandVoice: "Warm, reassuring, scripture-friendly without sounding preachy.",
+    brandVoice:
+      "Warm, reassuring, scripture-friendly without sounding preachy.",
     emoji: "🌿",
     productCount: 2,
     outputCount: 41,
     workflowRunCount: 1,
     chatCount: 3,
     automationCount: 1,
-    campaignGoal: "Drive free PDF opt-ins and convert qualified readers to the membership.",
-    targetAudience: "Christian moms managing tight one-income households.",
-    offer: "Monthly budgeting membership with templates, coaching prompts, and routines.",
+    campaignGoal:
+      "Drive free PDF opt-ins and convert qualified readers to the membership.",
+    targetAudience:
+      "Christian moms managing tight one-income households.",
+    offer:
+      "Monthly budgeting membership with templates, coaching prompts, and routines.",
     campaignStatus: "active",
     launchDate: "2026-05-27T00:00:00.000Z",
     brandVoiceProfileId: "bv_sage",
@@ -157,9 +232,12 @@ export const mockProjects: MockProject[] = [
     workflowRunCount: 1,
     chatCount: 1,
     automationCount: 0,
-    campaignGoal: "Prepare launch assets and improve objection handling.",
-    targetAudience: "9–5 employees who want a realistic beginner affiliate path.",
-    offer: "14-day beginner affiliate bootcamp with practical daily actions.",
+    campaignGoal:
+      "Prepare launch assets and improve objection handling.",
+    targetAudience:
+      "9–5 employees who want a realistic beginner affiliate path.",
+    offer:
+      "14-day beginner affiliate bootcamp with practical daily actions.",
     campaignStatus: "planning",
     launchDate: "2026-06-04T00:00:00.000Z",
     brandVoiceProfileId: null,
@@ -174,9 +252,11 @@ export const mockProducts: MockProduct[] = [
     id: "pr_serum",
     projectId: "p_skincare",
     name: "Glow Serum Bundle",
-    description: "A 3-step skincare routine for oily, breakout-prone skin.",
+    description:
+      "A 3-step skincare routine for oily, breakout-prone skin.",
     audience: "Women 22-35 with adult acne",
-    painPoint: "Cystic breakouts that do not respond to drugstore products",
+    painPoint:
+      "Cystic breakouts that do not respond to drugstore products",
     price: "$48",
     offerType: "digital_product",
     cta: "Tap the link in my bio to explore the bundle.",
