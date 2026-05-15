@@ -3,11 +3,18 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 import { prisma } from "../lib/prisma.js";
-import { signJwt, COOKIE_NAME, cookieOptions } from "../lib/jwt.js";
+import {
+  signJwt,
+  COOKIE_NAME,
+  cookieOptions,
+} from "../lib/jwt.js";
 import { errors } from "../lib/errors.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { authLimiter } from "../middleware/rateLimit.js";
-import { clearCsrfCookie, setCsrfCookie } from "../lib/csrf.js";
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "../lib/csrf.js";
 
 const router = Router();
 
@@ -23,13 +30,15 @@ const userSelect = {
 } as const;
 
 const signupSchema = z.object({
-  email: z.string().trim().email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  email: z.string().email(),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters"),
   name: z.string().trim().min(1).max(80).optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().trim().email(),
+  email: z.string().email(),
   password: z.string().min(1),
 });
 
@@ -45,7 +54,8 @@ router.get("/csrf", (_req, res) => {
 router.post("/signup", authLimiter, async (req, res, next) => {
   try {
     const { email, password, name } = signupSchema.parse(req.body);
-    const normalizedEmail = email.toLowerCase();
+
+    const normalizedEmail = email.trim().toLowerCase();
 
     const existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -62,7 +72,7 @@ router.post("/signup", authLimiter, async (req, res, next) => {
       data: {
         email: normalizedEmail,
         passwordHash,
-        name: name ?? normalizedEmail.split("@")[0],
+        name: name?.trim() || normalizedEmail.split("@")[0],
       },
       select: userSelect,
     });
@@ -84,9 +94,10 @@ router.post("/signup", authLimiter, async (req, res, next) => {
 router.post("/login", authLimiter, async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
-    const normalizedEmail = email.toLowerCase();
 
-    const account = await prisma.user.findUnique({
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const userWithPassword = await prisma.user.findUnique({
       where: { email: normalizedEmail },
       select: {
         id: true,
@@ -95,13 +106,13 @@ router.post("/login", authLimiter, async (req, res, next) => {
       },
     });
 
-    if (!account) {
+    if (!userWithPassword) {
       throw errors.unauthorized("Invalid email or password");
     }
 
     const validPassword = await bcrypt.compare(
       password,
-      account.passwordHash,
+      userWithPassword.passwordHash,
     );
 
     if (!validPassword) {
@@ -109,7 +120,7 @@ router.post("/login", authLimiter, async (req, res, next) => {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: account.id },
+      where: { id: userWithPassword.id },
       select: userSelect,
     });
 
@@ -131,6 +142,17 @@ router.post("/login", authLimiter, async (req, res, next) => {
   }
 });
 
+router.post("/logout", async (_req, res) => {
+  res.clearCookie(COOKIE_NAME, {
+    ...cookieOptions,
+    maxAge: 0,
+  });
+
+  clearCsrfCookie(res);
+
+  res.json({ ok: true });
+});
+
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
@@ -146,13 +168,6 @@ router.get("/me", requireAuth, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
-
-router.post("/logout", async (_req, res) => {
-  res.clearCookie(COOKIE_NAME, cookieOptions);
-  clearCsrfCookie(res);
-
-  res.json({ ok: true });
 });
 
 export default router;
