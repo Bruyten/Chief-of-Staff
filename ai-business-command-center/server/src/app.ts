@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 
 import { env } from "./env.js";
 import { logger } from "./lib/logger.js";
+
 import { apiLimiter } from "./middleware/rateLimit.js";
 import { requireCsrf } from "./middleware/requireCsrf.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -17,8 +18,7 @@ import outputsRoutes from "./routes/outputs.routes.js";
 import accountRoutes from "./routes/account.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
-
-import brandVoicesRoutes from "./routes/brandVoices.routes.js";
+import brandVoicesRoutes from "./routes/brandVoice.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import workflowsRoutes from "./routes/workflows.routes.js";
 import automationsRoutes from "./routes/automations.routes.js";
@@ -29,7 +29,6 @@ export function createApp() {
   const app = express();
 
   app.set("trust proxy", 1);
-
   app.use(helmet());
 
   const allowedOrigins = [
@@ -43,7 +42,9 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin) return callback(null, true);
+        if (!origin) {
+          return callback(null, true);
+        }
 
         if (allowedOrigins.includes(origin)) {
           return callback(null, true);
@@ -53,7 +54,7 @@ export function createApp() {
         return callback(new Error("CORS origin not allowed"));
       },
       credentials: true,
-    })
+    }),
   );
 
   app.use(cookieParser());
@@ -65,7 +66,7 @@ export function createApp() {
   app.use(
     "/api/webhooks",
     express.raw({ type: "application/json" }),
-    webhookRoutes
+    webhookRoutes,
   );
 
   app.use(express.json({ limit: "1mb" }));
@@ -89,7 +90,6 @@ export function createApp() {
   app.use("/api/outputs", outputsRoutes);
   app.use("/api/account", accountRoutes);
   app.use("/api/billing", billingRoutes);
-
   app.use("/api/brand-voices", brandVoicesRoutes);
   app.use("/api/chat", chatRoutes);
   app.use("/api/workflows", workflowsRoutes);
