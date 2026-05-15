@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+
 import { prisma } from "../lib/prisma.js";
 import { signJwt, COOKIE_NAME, cookieOptions } from "../lib/jwt.js";
 import { errors } from "../lib/errors.js";
@@ -22,43 +23,136 @@ const userSelect = {
 } as const;
 
 const signupSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  name: z.string().min(1).max(80).optional(),
+  name: z.string().trim().min(1).max(80).optional(),
+});
+
+const loginSchema = z.object({
+  email: z.string().trim().email(),
+  password: z.string().min(1),
 });
 
 router.get("/csrf", (_req, res) => {
   const token = setCsrfCookie(res);
-  res.json({ ok: true, ...(process.env.NODE_ENV === "test" ? { token } : {}) });
+
+  res.json({
+    ok: true,
+    ...(process.env.NODE_ENV === "test" ? { token } : {}),
+  });
 });
 
 router.post("/signup", authLimiter, async (req, res, next) => {
   try {
     const { email, password, name } = signupSchema.parse(req.body);
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) throw errors.conflict("Email already in use");
+    const normalizedEmail = email.toLowerCase();
+
+    const existing = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw errors.conflict("Email already in use");
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
+
     const user = await prisma.user.create({
-      data: { email, passwordHash, name: name ?? email.split("@")[0] },
+      data: {
+        email: normalizedEmail,
+        passwordHash,
+        name: name ?? normalizedEmail.split("@")[0],
+      },
       select: userSelect,
     });
 
-    const token = signJwt({ sub: user.id, email: user.email });
+    const token = signJwt({
+      sub: user.id,
+      email: user.email,
+    });
+
     res.cookie(COOKIE_NAME, token, cookieOptions);
     setCsrfCookie(res);
-    res.status(201).json({ user });
-  } catch (e) {
-    next(e);
-  }
-});
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+    res.status(201).json({ user });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post("/login", authLimiter, async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
+    const normalizedEmail = email.toLowerCase();
+
+    const account = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!account) {
+      throw errors.unauthorized("Invalid email or password");
+    }
+
+    const validPassword = await bcrypt.compare(
+      password,
+      account.passwordHash,
+    );
+
+    if (!validPassword) {
+      throw errors.unauthorized("Invalid email or password");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: account.id },
+      select: userSelect,
+    });
+
+    if (!user) {
+      throw errors.unauthorized("Account not found");
+    }
+
+    const token = signJwt({
+      sub: user.id,
+      email: user.email,
+    });
+
+    res.cookie(COOKIE_NAME, token, cookieOptions);
+    setCsrfCookie(res);
+
+    res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/me", requireAuth, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: userSelect,
+    });
+
+    if (!user) {
+      throw errors.unauthorized("Account not found");
+    }
+
+    res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/logout", async (_req, res) => {
+  res.clearCookie(COOKIE_NAME, cookieOptions);
+  clearCsrfCookie(res);
+
+  res.json({ ok: true });
+});
+
 export default router;
