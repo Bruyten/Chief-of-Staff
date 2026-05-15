@@ -29,6 +29,7 @@ export function createApp() {
   const app = express();
 
   app.set("trust proxy", 1);
+
   app.use(helmet());
 
   const allowedOrigins = [
@@ -60,8 +61,8 @@ export function createApp() {
   app.use(cookieParser());
 
   /**
-   * Stripe webhooks need raw body parsing for signature verification.
-   * Keep this mounted before express.json().
+   * Stripe webhooks require raw request bodies for signature verification.
+   * This must stay before express.json().
    */
   app.use(
     "/api/webhooks",
