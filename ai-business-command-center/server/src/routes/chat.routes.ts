@@ -1,10 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
+
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { chatLimiter } from "../middleware/rateLimit.js";
 import { errors } from "../lib/errors.js";
-import { optionalSafeText, safeText } from "../lib/securityText.js";
+import {
+  optionalSafeText,
+  safeText,
+} from "../lib/securityText.js";
 import {
   createChatConversation,
   sendChiefOfStaffMessage,
@@ -24,6 +28,8 @@ const conversationSchema = z.object({
 const messageSchema = z.object({
   content: safeText(8000, 1),
 });
+
+const conversationIdSchema = z.string().cuid();
 
 const updateConversationSchema = z
   .object({
@@ -91,11 +97,13 @@ router.post("/conversations", async (req, res, next) => {
 
 router.get("/conversations/:id", async (req, res, next) => {
   try {
-    await assertOwnsConversation(req.user!.id, req.params.id);
+    const conversationId = conversationIdSchema.parse(req.params.id);
+
+    await assertOwnsConversation(req.user!.id, conversationId);
 
     const conversation = await prisma.chatConversation.findFirst({
       where: {
-        id: req.params.id,
+        id: conversationId,
         userId: req.user!.id,
       },
       include: {
@@ -132,8 +140,13 @@ router.get("/conversations/:id", async (req, res, next) => {
 
 router.patch("/conversations/:id", async (req, res, next) => {
   try {
+    const conversationId = conversationIdSchema.parse(req.params.id);
     const data = updateConversationSchema.parse(req.body);
-    const owned = await assertOwnsConversation(req.user!.id, req.params.id);
+
+    const owned = await assertOwnsConversation(
+      req.user!.id,
+      conversationId,
+    );
 
     const conversation = await prisma.chatConversation.update({
       where: {
@@ -181,7 +194,12 @@ router.patch("/conversations/:id", async (req, res, next) => {
 
 router.delete("/conversations/:id", async (req, res, next) => {
   try {
-    const owned = await assertOwnsConversation(req.user!.id, req.params.id);
+    const conversationId = conversationIdSchema.parse(req.params.id);
+
+    const owned = await assertOwnsConversation(
+      req.user!.id,
+      conversationId,
+    );
 
     await prisma.chatConversation.delete({
       where: {
@@ -195,22 +213,28 @@ router.delete("/conversations/:id", async (req, res, next) => {
   }
 });
 
-router.post("/conversations/:id/messages", chatLimiter, async (req, res, next) => {
-  try {
-    await assertOwnsConversation(req.user!.id, req.params.id);
+router.post(
+  "/conversations/:id/messages",
+  chatLimiter,
+  async (req, res, next) => {
+    try {
+      const conversationId = conversationIdSchema.parse(req.params.id);
 
-    const data = messageSchema.parse(req.body);
+      await assertOwnsConversation(req.user!.id, conversationId);
 
-    const result = await sendChiefOfStaffMessage({
-      userId: req.user!.id,
-      conversationId: req.params.id,
-      content: data.content,
-    });
+      const data = messageSchema.parse(req.body);
 
-    res.status(201).json(result);
-  } catch (error) {
-    next(error);
-  }
-});
+      const result = await sendChiefOfStaffMessage({
+        userId: req.user!.id,
+        conversationId,
+        content: data.content,
+      });
+
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 export default router;
