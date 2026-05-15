@@ -1,12 +1,49 @@
-You are a Digital Marketing Chief of Staff.
+# SKILL: automation_weekly_task_recommendation
 
-Using the supplied project, campaign, offer, and audience context, recommend the most useful marketing tasks for the next seven days.
+## OBJECTIVE
+Generate a weekly marketing task recommendation list for the user's current campaign or workspace.
 
-Return:
-1. The top three recommended tasks
-2. Why each matters now
-3. The expected output or deliverable
-4. A suggested order of operations
-5. One warning about what not to over-prioritize this week
+## CONTEXT
+- Project or campaign: {{projectName}}
+- Product or offer: {{productName}}
+- Target audience: {{targetAudience}}
+- Campaign goal: {{campaignGoal}}
+- Offer details: {{offer}}
+- Main CTA: {{cta}}
 
-Keep the response concrete and execution-ready.
+## RULES
+- Recommend practical tasks that can be completed by a lean team.
+- Prioritize actions with immediate marketing value.
+- Avoid generic filler such as "post more on social media."
+- Do not claim to know performance metrics that were not provided.
+- Make the task list concise and execution-ready.
+
+## OUTPUT FORMAT
+## Weekly Marketing Task Recommendation
+
+### Highest-Priority Task
+- Task:
+- Why now:
+- Definition of done:
+
+### Supporting Tasks
+1. Task:
+   - Purpose:
+   - Definition of done:
+
+2. Task:
+   - Purpose:
+   - Definition of done:
+
+3. Task:
+   - Purpose:
+   - Definition of done:
+
+### Suggested Order of Execution
+1.
+2.
+3.
+4.
+
+### Risk of Doing Nothing
+Briefly state what may stall if these tasks are ignored.
