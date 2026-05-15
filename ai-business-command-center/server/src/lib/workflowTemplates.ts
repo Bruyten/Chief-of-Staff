@@ -1,13 +1,53 @@
 export type WorkflowTemplateStep = {
+  key: string;
+  label: string;
+  skill: string;
+  outputTitle: string;
+};
+
+export type WorkflowTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  requiredInputs: string[];
+  steps: WorkflowTemplateStep[];
+};
+
+export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
+  {
+    id: "campaign_launch",
+    name: "Campaign Launch Workflow",
+    description:
+      "Shape the offer, create hooks, draft short-form content, assemble email messaging, and define a rollout sequence.",
+    requiredInputs: ["productName", "targetAudience", "cta"],
+    steps: [
       {
-        key: "promo_email",
-        label: "Promotional email asset",
-        skill: "email_promo",
-        outputTitle: "Promotional Email",
+        key: "campaign_angle",
+        label: "Offer and campaign angle",
+        skill: "offer_improvement_analysis",
+        outputTitle: "Campaign Angle",
+      },
+      {
+        key: "hook_ideas",
+        label: "Hook ideas",
+        skill: "hook_generator",
+        outputTitle: "Campaign Hooks",
+      },
+      {
+        key: "short_form_scripts",
+        label: "Short-form content draft",
+        skill: "tiktok_script",
+        outputTitle: "Short-form Script Ideas",
+      },
+      {
+        key: "email_message",
+        label: "Email messaging asset",
+        skill: "email_welcome_sequence",
+        outputTitle: "Email Messaging Asset",
       },
       {
         key: "launch_plan",
-        label: "Launch plan / schedule",
+        label: "Publishing rollout sequence",
         skill: "workflow_publishing_sequence",
         outputTitle: "Launch Publishing Plan",
       },
@@ -16,7 +56,8 @@ export type WorkflowTemplateStep = {
   {
     id: "weekly_content",
     name: "Weekly Content Workflow",
-    description: "Plan the weekly focus, social ideas, short-form content, email touchpoint, and publishing order.",
+    description:
+      "Plan the weekly focus, build supporting content ideas, draft short-form assets, and sequence the publishing order.",
     requiredInputs: ["productName", "targetAudience", "cta"],
     steps: [
       {
@@ -26,22 +67,22 @@ export type WorkflowTemplateStep = {
         outputTitle: "Weekly Marketing Focus",
       },
       {
-        key: "social_ideas",
-        label: "Social post ideas",
-        skill: "social_post_ideas",
-        outputTitle: "Social Post Ideas",
+        key: "content_plan",
+        label: "Content planning ideas",
+        skill: "content_plan_30day",
+        outputTitle: "Weekly Content Planning Ideas",
       },
       {
         key: "short_form_ideas",
-        label: "Short-form content ideas",
+        label: "Short-form script asset",
         skill: "tiktok_script",
-        outputTitle: "Short-form Content Ideas",
+        outputTitle: "Short-form Content Draft",
       },
       {
-        key: "email_touchpoint",
-        label: "Email or promo touchpoint",
-        skill: "email_promo",
-        outputTitle: "Weekly Email Touchpoint",
+        key: "caption_asset",
+        label: "Social caption asset",
+        skill: "instagram_caption",
+        outputTitle: "Social Caption Asset",
       },
       {
         key: "publishing_sequence",
@@ -54,30 +95,31 @@ export type WorkflowTemplateStep = {
   {
     id: "lead_magnet_funnel",
     name: "Lead Magnet Funnel Workflow",
-    description: "Create a lead magnet concept, landing page angle, email welcome flow, and promo hooks.",
+    description:
+      "Create a lead magnet concept, shape the funnel message, draft the welcome sequence, and produce promotional hooks.",
     requiredInputs: ["productName", "targetAudience"],
     steps: [
       {
         key: "lead_magnet_idea",
-        label: "Lead magnet idea",
-        skill: "lead_magnet_idea",
-        outputTitle: "Lead Magnet Idea",
+        label: "Lead magnet concept",
+        skill: "lead_magnet_ideas",
+        outputTitle: "Lead Magnet Concept",
       },
       {
-        key: "landing_page_angle",
-        label: "Landing page / offer angle",
-        skill: "landing_page_copy",
-        outputTitle: "Landing Page Angle",
+        key: "funnel_message",
+        label: "Landing or sales page angle",
+        skill: "sales_page_outline",
+        outputTitle: "Funnel Message Outline",
       },
       {
         key: "welcome_sequence",
-        label: "Email welcome sequence",
-        skill: "email_sequence",
+        label: "Welcome email sequence",
+        skill: "email_welcome_sequence",
         outputTitle: "Welcome Email Sequence",
       },
       {
         key: "promo_hooks",
-        label: "Promo posts and hooks",
+        label: "Promotional hooks",
         skill: "hook_generator",
         outputTitle: "Promo Hooks",
       },
@@ -86,5 +128,7 @@ export type WorkflowTemplateStep = {
 ];
 
 export function findWorkflowTemplate(templateId: string) {
-  return WORKFLOW_TEMPLATES.find((template) => template.id === templateId) ?? null;
+  return (
+    WORKFLOW_TEMPLATES.find((template) => template.id === templateId) ?? null
+  );
 }
