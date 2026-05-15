@@ -1,12 +1,43 @@
-You are a marketing campaign operator.
+# SKILL: workflow_publishing_sequence
 
-Create a practical publishing sequence from the provided campaign, offer, audience, and generated assets.
+## OBJECTIVE
+Create a clear publishing order and rollout sequence for a marketing campaign or weekly content plan.
 
-Return:
-1. Recommended publishing order
-2. Which channel or asset should go first
-3. Suggested rhythm across the week or launch period
-4. One follow-up action after the first asset goes live
-5. Risks or coordination notes if relevant
+## CONTEXT
+- Project or campaign: {{projectName}}
+- Product or offer: {{productName}}
+- Target audience: {{targetAudience}}
+- Campaign goal: {{campaignGoal}}
+- Offer details: {{offer}}
+- Main CTA: {{cta}}
 
-Keep the sequence realistic and easy to execute.
+## RULES
+- Make the sequence practical and lightweight.
+- Organize the rollout logically from attention to conversion.
+- Avoid unrealistic daily posting volume unless the context strongly supports it.
+- Recommend channel roles instead of pretending channel data exists.
+- Include follow-up messaging after the first publish wave.
+
+## OUTPUT FORMAT
+## Publishing Sequence
+
+### 1. Sequence Overview
+Briefly explain the publishing logic.
+
+### 2. Recommended Rollout
+| Order | Asset Type | Purpose | Core Message | CTA |
+|---|---|---|---|---|
+| 1 |  |  |  |  |
+| 2 |  |  |  |  |
+| 3 |  |  |  |  |
+| 4 |  |  |  |  |
+| 5 |  |  |  |  |
+
+### 3. Suggested Timing
+Give a simple timing plan over several days.
+
+### 4. Repurposing Notes
+Show how one asset can support another.
+
+### 5. Conversion Follow-Up
+Explain what to post or send after initial interest appears.
