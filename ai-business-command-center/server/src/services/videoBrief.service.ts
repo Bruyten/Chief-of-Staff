@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { errors } from "../lib/errors.js";
+import type { VideoProviderReferenceImage } from "../video/videoProvider.types.js";
 
 export type VideoStudioCreateInput = {
   title: string;
@@ -16,6 +17,8 @@ export type VideoStudioCreateInput = {
   durationSeconds: 6 | 8 | 12;
   toneStyle: string;
   cta?: string;
+  referenceImageInstructions?: string;
+  referenceImages?: VideoProviderReferenceImage[];
 };
 
 function clip(value: string | null | undefined, max: number) {
@@ -144,6 +147,33 @@ export async function buildVideoPromptBrief(
     "- Do not invent claims, prices, or product details that are not provided.",
     "- Do not include real celebrity likenesses, protected logos, or copyrighted characters unless the source material explicitly makes that safe.",
   ];
+
+  const referenceImages = input.referenceImages ?? [];
+
+  if (referenceImages.length > 0) {
+    lines.push(
+      "",
+      "Reference image guidance:",
+      `- ${referenceImages.length} user-supplied image${referenceImages.length === 1 ? "" : "s"} are attached for this video.`,
+      "- Treat attached product covers, screenshots, or promotional visuals as important source material.",
+      "- If an attached image contains readable title text, preserve its meaning and do not intentionally misrepresent the product.",
+    );
+
+    if (input.referenceImageInstructions?.trim()) {
+      lines.push(
+        `- User instructions for the attached images: ${input.referenceImageInstructions.trim()}`,
+      );
+    } else {
+      lines.push(
+        "- Use the attached images naturally as relevant branded/product visuals in the video.",
+      );
+    }
+
+    lines.push(
+      "- Attached file names:",
+      ...referenceImages.map((image) => `  - ${image.originalName}`),
+    );
+  }
 
   if (project) {
     lines.push(
