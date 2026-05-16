@@ -1,9 +1,17 @@
+export type VideoProviderReferenceImage = {
+  originalName: string;
+  mimeType: "image/png" | "image/jpeg";
+  sizeBytes: number;
+  buffer: Buffer;
+};
+
 export type VideoProviderCreateInput = {
   internalJobId: string;
   promptBrief: string;
   aspectRatio: "9:16" | "1:1" | "16:9";
   durationSeconds: 6 | 8 | 12;
   title: string;
+  referenceImages?: VideoProviderReferenceImage[];
 };
 
 export type VideoProviderCreateResult = {
