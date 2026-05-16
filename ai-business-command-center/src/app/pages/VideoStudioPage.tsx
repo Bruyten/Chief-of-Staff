@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useApp } from "../AppContext";
 import { useUnlimitedAccess } from "../lib/useUnlimitedAccess";
+import { createVideoJobWithImages } from "../lib/createVideoJobWithImages";
 import { AppShell } from "../layout/AppShell";
 import {
   Badge,
@@ -31,7 +32,12 @@ type VideoStudioForm = {
   durationSeconds: VideoJob["durationSeconds"];
   toneStyle: string;
   cta: string;
+  referenceImageInstructions: string;
+  referenceImages: File[];
 };
+
+const MAX_REFERENCE_IMAGES = 5;
+const MAX_REFERENCE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const EMPTY_FORM: VideoStudioForm = {
   title: "",
@@ -45,6 +51,8 @@ const EMPTY_FORM: VideoStudioForm = {
   toneStyle:
     "Polished, premium, conversion-focused short-form marketing video.",
   cta: "",
+  referenceImageInstructions: "",
+  referenceImages: [],
 };
 
 export function VideoStudioPage() {
@@ -130,6 +138,53 @@ export function VideoStudioPage() {
     ? "Owner / Unlimited"
     : `${user.videoCredits} / ${user.videoCreditsMax} video credits`;
 
+  function handleReferenceImages(files: FileList | null) {
+    if (!files) {
+      return;
+    }
+
+    const nextFiles = Array.from(files);
+
+    if (nextFiles.length > MAX_REFERENCE_IMAGES) {
+      toast(
+        `Upload no more than ${MAX_REFERENCE_IMAGES} reference images.`,
+        "danger",
+      );
+      return;
+    }
+
+    const invalidType = nextFiles.find(
+      (file) =>
+        file.type !== "image/png" &&
+        file.type !== "image/jpeg",
+    );
+
+    if (invalidType) {
+      toast(
+        "Only PNG and JPEG reference images are supported right now.",
+        "danger",
+      );
+      return;
+    }
+
+    const oversized = nextFiles.find(
+      (file) => file.size > MAX_REFERENCE_IMAGE_BYTES,
+    );
+
+    if (oversized) {
+      toast(
+        "Each reference image must be 10 MB or smaller.",
+        "danger",
+      );
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      referenceImages: nextFiles,
+    }));
+  }
+
   async function createJob() {
     if (!form.title.trim() || creating || videoLocked) {
       return;
@@ -143,12 +198,15 @@ export function VideoStudioPage() {
         sourceType: form.sourceType,
         projectId: form.projectId || null,
         sourceOutputId: form.sourceOutputId || null,
-        sourceWorkflowRunId: form.sourceWorkflowRunId || null,
+        sourceWorkflowRunId:
+          form.sourceWorkflowRunId || null,
         useCase: form.useCase,
         aspectRatio: form.aspectRatio,
         durationSeconds: form.durationSeconds,
         toneStyle: form.toneStyle.trim(),
         cta: form.cta.trim() || undefined,
+        referenceImageInstructions:
+          form.referenceImageInstructions.trim() || undefined,
       };
 
       if (mode === "mock") {
@@ -209,7 +267,10 @@ export function VideoStudioPage() {
         return;
       }
 
-      const response = await videoStudio.create(payload);
+      const response = await createVideoJobWithImages(
+        payload,
+        form.referenceImages,
+      );
 
       setJobs((current) => [response.job, ...current]);
 
@@ -273,7 +334,7 @@ export function VideoStudioPage() {
   return (
     <AppShell
       title="Video Studio"
-      subtitle="Create provider-backed promotional video jobs from briefs, assets, and workflow results."
+      subtitle="Create provider-backed promotional video jobs from briefs, workflow results, and reference visuals."
       action={<Badge>{videoCreditLabel}</Badge>}
     >
       <div className="space-y-6">
@@ -321,8 +382,8 @@ export function VideoStudioPage() {
               </h2>
 
               <p className="mt-1 text-sm text-white/55">
-                Start from scratch, campaign context, a saved asset, or a
-                workflow result.
+                Start from scratch, campaign context, a saved asset, a workflow
+                result, and now attached reference images.
               </p>
             </div>
 
@@ -343,7 +404,7 @@ export function VideoStudioPage() {
             <EmptyState
               icon="🎬"
               title="No video jobs yet"
-              description="Create your first provider-ready short-form video job from a campaign, saved output, or workflow result."
+              description="Create your first provider-ready short-form video job from a campaign, saved output, workflow result, or reference image."
               action={
                 <Button onClick={openCreate} disabled={videoLocked}>
                   Create Video Job
@@ -442,7 +503,7 @@ export function VideoStudioPage() {
               onClick={() => void createJob()}
               disabled={videoLocked || creating}
             >
-              {creating ? "Submitting…" : "Generate Video Brief + Submit Job"}
+              {creating ? "Submitting…" : "Generate Video + Submit Job"}
             </Button>
           </>
         }
@@ -471,17 +532,29 @@ export function VideoStudioPage() {
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,
-                  sourceType: event.target.value as VideoJob["sourceType"],
+                  sourceType:
+                    event.target.value as VideoJob["sourceType"],
                   sourceOutputId: "",
                   sourceWorkflowRunId: "",
                 }))
               }
               className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
             >
-              <option value="scratch">Start from scratch</option>
-              <option value="project">Start from Project / Campaign</option>
-              <option value="output">Start from Saved Output</option>
-              <option value="workflow_run">Start from Workflow Result</option>
+              <option className="bg-[#111827] text-white" value="scratch">
+                Start from scratch
+              </option>
+              <option className="bg-[#111827] text-white" value="project">
+                Start from Project / Campaign
+              </option>
+              <option className="bg-[#111827] text-white" value="output">
+                Start from Saved Output
+              </option>
+              <option
+                className="bg-[#111827] text-white"
+                value="workflow_run"
+              >
+                Start from Workflow Result
+              </option>
             </select>
           </label>
 
@@ -500,10 +573,16 @@ export function VideoStudioPage() {
               }
               className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
             >
-              <option value="">No project selected</option>
+              <option className="bg-[#111827] text-white" value="">
+                No project selected
+              </option>
 
               {projects.map((project) => (
-                <option key={project.id} value={project.id}>
+                <option
+                  className="bg-[#111827] text-white"
+                  key={project.id}
+                  value={project.id}
+                >
                   {project.emoji ? `${project.emoji} ` : ""}
                   {project.name}
                 </option>
@@ -527,10 +606,16 @@ export function VideoStudioPage() {
                 }
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
               >
-                <option value="">Select saved output</option>
+                <option className="bg-[#111827] text-white" value="">
+                  Select saved output
+                </option>
 
                 {selectedProjectOutputs.map((output) => (
-                  <option key={output.id} value={output.id}>
+                  <option
+                    className="bg-[#111827] text-white"
+                    key={output.id}
+                    value={output.id}
+                  >
                     {output.title}
                   </option>
                 ))}
@@ -554,10 +639,16 @@ export function VideoStudioPage() {
                 }
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
               >
-                <option value="">Select workflow run</option>
+                <option className="bg-[#111827] text-white" value="">
+                  Select workflow run
+                </option>
 
                 {selectedProjectWorkflowRuns.map((run) => (
-                  <option key={run.id} value={run.id}>
+                  <option
+                    className="bg-[#111827] text-white"
+                    key={run.id}
+                    value={run.id}
+                  >
                     {run.title}
                   </option>
                 ))}
@@ -575,17 +666,30 @@ export function VideoStudioPage() {
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,
-                  useCase: event.target.value as VideoJob["useCase"],
+                  useCase:
+                    event.target.value as VideoJob["useCase"],
                 }))
               }
               className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
             >
-              <option value="promo_ad">Short-form promotional ad</option>
-              <option value="product_highlight">
+              <option className="bg-[#111827] text-white" value="promo_ad">
+                Short-form promotional ad
+              </option>
+              <option
+                className="bg-[#111827] text-white"
+                value="product_highlight"
+              >
                 Product / service highlight
               </option>
-              <option value="offer_announcement">Offer announcement</option>
-              <option value="social_reel">Social reel / short creative</option>
+              <option
+                className="bg-[#111827] text-white"
+                value="offer_announcement"
+              >
+                Offer announcement
+              </option>
+              <option className="bg-[#111827] text-white" value="social_reel">
+                Social reel / short creative
+              </option>
             </select>
           </label>
 
@@ -606,9 +710,15 @@ export function VideoStudioPage() {
                 }
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
               >
-                <option value="9:16">9:16 Vertical</option>
-                <option value="1:1">1:1 Square</option>
-                <option value="16:9">16:9 Landscape</option>
+                <option className="bg-[#111827] text-white" value="9:16">
+                  9:16 Vertical
+                </option>
+                <option className="bg-[#111827] text-white" value="1:1">
+                  1:1 Square
+                </option>
+                <option className="bg-[#111827] text-white" value="16:9">
+                  16:9 Landscape
+                </option>
               </select>
             </label>
 
@@ -629,9 +739,15 @@ export function VideoStudioPage() {
                 }
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
               >
-                <option value={6}>6 seconds</option>
-                <option value={8}>8 seconds</option>
-                <option value={12}>12 seconds</option>
+                <option className="bg-[#111827] text-white" value={6}>
+                  6 seconds
+                </option>
+                <option className="bg-[#111827] text-white" value={8}>
+                  8 seconds
+                </option>
+                <option className="bg-[#111827] text-white" value={12}>
+                  12 seconds
+                </option>
               </select>
             </label>
           </div>
@@ -657,6 +773,54 @@ export function VideoStudioPage() {
               }))
             }
             placeholder="e.g. Download the free guide"
+          />
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-white/75">
+              Reference Images
+            </div>
+
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              multiple
+              onChange={(event) =>
+                handleReferenceImages(event.target.files)
+              }
+              className="block w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-violet-500 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-violet-400"
+            />
+
+            <div className="text-xs text-white/45">
+              Upload up to 5 PNG or JPEG images, 10 MB each.
+            </div>
+
+            {form.referenceImages.length > 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/70">
+                <div className="font-medium text-white">
+                  Selected images
+                </div>
+
+                <ul className="mt-2 space-y-1">
+                  {form.referenceImages.map((image) => (
+                    <li key={`${image.name}-${image.size}`}>
+                      • {image.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+
+          <Textarea
+            label="How should HeyGen use the images?"
+            value={form.referenceImageInstructions}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                referenceImageInstructions: event.target.value,
+              }))
+            }
+            placeholder="Example: Use the attached book cover as the main featured visual. Show it clearly on-screen as the free guide being promoted. Do not rewrite the title."
           />
         </div>
       </Modal>
