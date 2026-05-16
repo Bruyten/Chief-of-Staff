@@ -70,7 +70,7 @@ type JsonRequestInit = {
 };
 
 type UploadedHeyGenAsset = {
-  assetId: string | null;
+  assetId: string;
   url: string;
   mimeType: string | null;
   sizeBytes: number | null;
@@ -97,8 +97,8 @@ export class HeyGenVideoProvider implements VideoProvider {
       ...(uploadedAssets.length > 0
         ? {
             files: uploadedAssets.map((asset) => ({
-              type: "url",
-              url: asset.url,
+              type: "asset_id",
+              asset_id: asset.assetId,
             })),
           }
         : {}),
@@ -133,6 +133,7 @@ export class HeyGenVideoProvider implements VideoProvider {
         orientation: orientation ?? null,
         requestedDurationSeconds: input.durationSeconds,
         referenceImageCount: uploadedAssets.length,
+        referenceFileTransport: "asset_id",
         uploadedReferenceAssets: uploadedAssets.map((asset) => ({
           assetId: asset.assetId,
           url: asset.url,
@@ -170,22 +171,15 @@ export class HeyGenVideoProvider implements VideoProvider {
     const newestVideo = videosResponse.data?.[0];
 
     const providerStatus =
-      newestVideo?.status ??
-      session?.status ??
-      "processing";
+      newestVideo?.status ?? session?.status ?? "processing";
 
     const videoUrl =
       newestVideo?.video_url ??
       newestVideo?.captioned_video_url ??
       null;
 
-    const thumbnailUrl =
-      newestVideo?.thumbnail_url ??
-      null;
-
-    const failureMessage =
-      newestVideo?.failure_message ??
-      null;
+    const thumbnailUrl = newestVideo?.thumbnail_url ?? null;
+    const failureMessage = newestVideo?.failure_message ?? null;
 
     const normalizedStatus = normalizeHeyGenStatus({
       providerStatus,
@@ -256,7 +250,14 @@ async function uploadReferenceImages(
     }
 
     const body = payload as HeyGenAssetUploadResponse;
+    const assetId = body.data?.asset_id?.trim();
     const assetUrl = body.data?.url?.trim();
+
+    if (!assetId) {
+      throw new Error(
+        `HeyGen uploaded ${image.originalName}, but no asset ID was returned.`,
+      );
+    }
 
     if (!assetUrl) {
       throw new Error(
@@ -265,7 +266,7 @@ async function uploadReferenceImages(
     }
 
     uploadedAssets.push({
-      assetId: body.data?.asset_id?.trim() || null,
+      assetId,
       url: assetUrl,
       mimeType: body.data?.mime_type ?? image.mimeType,
       sizeBytes: body.data?.size_bytes ?? image.sizeBytes,
@@ -297,7 +298,6 @@ function getApiKey(): string {
 
 function getBaseUrl(): string {
   const configured = env.VIDEO_PROVIDER_BASE_URL?.trim();
-
   return (configured || DEFAULT_HEYGEN_BASE_URL).replace(/\/+$/, "");
 }
 
