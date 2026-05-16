@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { z } from "zod";
-
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import {
@@ -25,6 +24,7 @@ const router = Router();
 router.use(requireAuth);
 
 const automationTypeSchema = z.enum([
+  "daily_trend_research",
   "weekly_content_plan",
   "monthly_campaign_ideas",
   "weekly_task_recommendation",
@@ -50,8 +50,20 @@ const updateSchema = z
     name: optionalSafeText(180),
     enabled: z.boolean().optional(),
     timezone: safeText(120, 1).optional(),
-    dayOfWeek: z.number().int().min(1).max(7).nullable().optional(),
-    dayOfMonth: z.number().int().min(1).max(31).nullable().optional(),
+    dayOfWeek: z
+      .number()
+      .int()
+      .min(1)
+      .max(7)
+      .nullable()
+      .optional(),
+    dayOfMonth: z
+      .number()
+      .int()
+      .min(1)
+      .max(31)
+      .nullable()
+      .optional(),
     hour: z.number().int().min(0).max(23).optional(),
     minute: z.number().int().min(0).max(59).optional(),
     config: boundedJsonRecord(40, 50_000).optional(),
@@ -63,7 +75,6 @@ const updateSchema = z
 router.get("/", async (req, res, next) => {
   try {
     const automations = await listAutomations(req.user!.id);
-
     res.json({ automations });
   } catch (error) {
     next(error);
@@ -118,24 +129,46 @@ router.patch("/:id", async (req, res, next) => {
       req.user!.id,
       automationId,
       {
-        ...(data.name !== undefined ? { name: data.name || "" } : {}),
+        ...(data.name !== undefined
+          ? {
+              name: data.name || "",
+            }
+          : {}),
         ...(data.enabled !== undefined
-          ? { enabled: data.enabled }
+          ? {
+              enabled: data.enabled,
+            }
           : {}),
         ...(data.timezone !== undefined
-          ? { timezone: data.timezone }
+          ? {
+              timezone: data.timezone,
+            }
           : {}),
         ...(data.dayOfWeek !== undefined
-          ? { dayOfWeek: data.dayOfWeek }
+          ? {
+              dayOfWeek: data.dayOfWeek,
+            }
           : {}),
         ...(data.dayOfMonth !== undefined
-          ? { dayOfMonth: data.dayOfMonth }
+          ? {
+              dayOfMonth: data.dayOfMonth,
+            }
           : {}),
-        ...(data.hour !== undefined ? { hour: data.hour } : {}),
+        ...(data.hour !== undefined
+          ? {
+              hour: data.hour,
+            }
+          : {}),
         ...(data.minute !== undefined
-          ? { minute: data.minute }
+          ? {
+              minute: data.minute,
+            }
           : {}),
-        ...(data.config !== undefined ? { config: data.config } : {}),
+        ...(data.config !== undefined
+          ? {
+              config: data.config,
+            }
+          : {}),
       },
     );
 
