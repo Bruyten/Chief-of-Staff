@@ -10,6 +10,8 @@ import { ensureAvailableUsage } from "./usage.service.js";
 import { createWorkflowRun } from "./workflow.service.js";
 import { runGenerationUnit } from "./generationUnit.service.js";
 
+type AutomationCadence = "daily" | "weekly" | "monthly";
+
 export async function listAutomations(userId: string) {
   return prisma.automation.findMany({
     where: {
@@ -42,7 +44,10 @@ export async function listAutomations(userId: string) {
   });
 }
 
-export async function getAutomation(userId: string, automationId: string) {
+export async function getAutomation(
+  userId: string,
+  automationId: string,
+) {
   const automation = await prisma.automation.findFirst({
     where: {
       id: automationId,
@@ -199,7 +204,7 @@ export async function updateAutomation(
     hour: number;
     minute: number;
     config: Record<string, unknown>;
-  }>
+  }>,
 ) {
   const existing = await prisma.automation.findFirst({
     where: {
@@ -213,7 +218,7 @@ export async function updateAutomation(
   }
 
   const nextRunAt = computeNextRunAt({
-    cadence: existing.cadence as "weekly" | "monthly",
+    cadence: existing.cadence as AutomationCadence,
     timezone: input.timezone ?? existing.timezone,
     dayOfWeek:
       input.dayOfWeek !== undefined
@@ -298,19 +303,28 @@ export async function updateAutomation(
   });
 }
 
-export async function enableAutomation(userId: string, automationId: string) {
+export async function enableAutomation(
+  userId: string,
+  automationId: string,
+) {
   return updateAutomation(userId, automationId, {
     enabled: true,
   });
 }
 
-export async function disableAutomation(userId: string, automationId: string) {
+export async function disableAutomation(
+  userId: string,
+  automationId: string,
+) {
   return updateAutomation(userId, automationId, {
     enabled: false,
   });
 }
 
-export async function deleteAutomation(userId: string, automationId: string) {
+export async function deleteAutomation(
+  userId: string,
+  automationId: string,
+) {
   const existing = await prisma.automation.findFirst({
     where: {
       id: automationId,
@@ -334,7 +348,7 @@ export async function deleteAutomation(userId: string, automationId: string) {
 
 export async function queueAutomationRunNow(
   userId: string,
-  automationId: string
+  automationId: string,
 ) {
   const automation = await prisma.automation.findFirst({
     where: {
@@ -347,7 +361,8 @@ export async function queueAutomationRunNow(
     throw errors.notFound("Automation not found");
   }
 
-  const meta = AUTOMATION_TYPE_META[automation.type as AutomationType];
+  const meta =
+    AUTOMATION_TYPE_META[automation.type as AutomationType];
 
   return prisma.automationRun.create({
     data: {
@@ -429,7 +444,7 @@ export async function claimDueAutomations(limit: number) {
 
 async function completeAutomationMetadata(input: {
   automationId: string;
-  automationCadence: "weekly" | "monthly";
+  automationCadence: AutomationCadence;
   timezone: string;
   dayOfWeek: number | null;
   dayOfMonth: number | null;
@@ -471,7 +486,7 @@ async function completeAutomationMetadata(input: {
 
 export async function executeAutomation(
   automationId: string,
-  trigger: "scheduled" | "manual"
+  trigger: "scheduled" | "manual",
 ) {
   const automation = await prisma.automation.findUnique({
     where: {
@@ -483,7 +498,8 @@ export async function executeAutomation(
     throw errors.notFound("Automation not found");
   }
 
-  const meta = AUTOMATION_TYPE_META[automation.type as AutomationType];
+  const meta =
+    AUTOMATION_TYPE_META[automation.type as AutomationType];
 
   const run = await prisma.automationRun.create({
     data: {
@@ -503,7 +519,7 @@ export async function executeAutomation(
     await ensureAvailableUsage(
       automation.userId,
       "text",
-      meta.creditsRequired
+      meta.creditsRequired,
     );
   } catch {
     await prisma.automationRun.update({
@@ -520,7 +536,7 @@ export async function executeAutomation(
 
     await completeAutomationMetadata({
       automationId: automation.id,
-      automationCadence: automation.cadence as "weekly" | "monthly",
+      automationCadence: automation.cadence as AutomationCadence,
       timezone: automation.timezone,
       dayOfWeek: automation.dayOfWeek,
       dayOfMonth: automation.dayOfMonth,
@@ -534,14 +550,21 @@ export async function executeAutomation(
   }
 
   try {
-    if (automation.type === "weekly_content_plan") {
+    if (
+      automation.type === "weekly_content_plan" ||
+      automation.type === "daily_trend_research"
+    ) {
       const workflowRun = await createWorkflowRun({
         userId: automation.userId,
-        templateId: "weekly_content",
+        templateId:
+          automation.type === "daily_trend_research"
+            ? "daily_trend_research"
+            : "weekly_content",
         title: automation.name,
         projectId: automation.projectId,
         brandVoiceProfileId: automation.brandVoiceProfileId,
-        context: (automation.config as Record<string, unknown>) ?? {},
+        context:
+          (automation.config as Record<string, unknown>) ?? {},
       });
 
       await prisma.automationRun.update({
@@ -568,7 +591,8 @@ export async function executeAutomation(
         userId: automation.userId,
         projectId: automation.projectId,
         skill,
-        context: (automation.config as Record<string, unknown>) ?? {},
+        context:
+          (automation.config as Record<string, unknown>) ?? {},
         taskType: `automation:${automation.type}`,
       });
 
@@ -579,7 +603,8 @@ export async function executeAutomation(
           type: skill,
           title: automation.name,
           content: generation.content,
-          inputSnapshot: (automation.config as object) ?? {},
+          inputSnapshot:
+            (automation.config as object) ?? {},
         },
       });
 
@@ -601,7 +626,7 @@ export async function executeAutomation(
 
     await completeAutomationMetadata({
       automationId: automation.id,
-      automationCadence: automation.cadence as "weekly" | "monthly",
+      automationCadence: automation.cadence as AutomationCadence,
       timezone: automation.timezone,
       dayOfWeek: automation.dayOfWeek,
       dayOfMonth: automation.dayOfMonth,
@@ -615,7 +640,7 @@ export async function executeAutomation(
         err: error,
         automationId: automation.id,
       },
-      "Automation execution failed"
+      "Automation execution failed",
     );
 
     await prisma.automationRun.update({
@@ -631,7 +656,7 @@ export async function executeAutomation(
 
     await completeAutomationMetadata({
       automationId: automation.id,
-      automationCadence: automation.cadence as "weekly" | "monthly",
+      automationCadence: automation.cadence as AutomationCadence,
       timezone: automation.timezone,
       dayOfWeek: automation.dayOfWeek,
       dayOfMonth: automation.dayOfMonth,
