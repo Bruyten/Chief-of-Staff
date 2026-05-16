@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../AppContext";
 import { AppShell } from "../layout/AppShell";
-import { Badge, Button, Card, EmptyState, Input, Modal, Textarea } from "../ui/Primitives";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  Modal,
+  Textarea,
+} from "../ui/Primitives";
 import {
   automations,
   brandVoices,
   friendlyError,
   type Automation,
+  type AutomationCadence,
   type BrandVoiceProfile,
 } from "../lib/apiClient";
 
@@ -24,6 +33,12 @@ type AutomationForm = {
   targetAudience: string;
   offer: string;
   cta: string;
+  campaignGoal: string;
+  researchKeywords: string;
+  redditSubreddits: string;
+  researchLocationCode: string;
+  researchLanguageCode: string;
+  researchTimeRange: string;
 };
 
 const EMPTY_FORM: AutomationForm = {
@@ -40,18 +55,29 @@ const EMPTY_FORM: AutomationForm = {
   targetAudience: "",
   offer: "",
   cta: "",
+  campaignGoal: "",
+  researchKeywords: "",
+  redditSubreddits: "",
+  researchLocationCode: "2840",
+  researchLanguageCode: "en",
+  researchTimeRange: "past_7_days",
 };
 
 export function AutomationsPage() {
   const { mode, params, projects, toast } = useApp();
+
   const [items, setItems] = useState<Automation[]>([]);
-  const [brandProfiles, setBrandProfiles] = useState<BrandVoiceProfile[]>([]);
+  const [brandProfiles, setBrandProfiles] = useState<BrandVoiceProfile[]>(
+    [],
+  );
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+
   const [form, setForm] = useState<AutomationForm>({
     ...EMPTY_FORM,
-    projectId: typeof params.projectId === "string" ? params.projectId : "",
+    projectId:
+      typeof params.projectId === "string" ? params.projectId : "",
   });
 
   useEffect(() => {
@@ -86,7 +112,8 @@ export function AutomationsPage() {
   function openCreate() {
     setForm({
       ...EMPTY_FORM,
-      projectId: typeof params.projectId === "string" ? params.projectId : "",
+      projectId:
+        typeof params.projectId === "string" ? params.projectId : "",
     });
     setModalOpen(true);
   }
@@ -95,14 +122,30 @@ export function AutomationsPage() {
     setModalOpen(false);
     setForm({
       ...EMPTY_FORM,
-      projectId: typeof params.projectId === "string" ? params.projectId : "",
+      projectId:
+        typeof params.projectId === "string" ? params.projectId : "",
     });
   }
 
   const cadence = automationCadence(form.type);
+  const isDailyTrendResearch = form.type === "daily_trend_research";
 
   async function createAutomation() {
-    if (!form.name.trim() || saving) return;
+    if (!form.name.trim() || saving) {
+      return;
+    }
+
+    if (
+      isDailyTrendResearch &&
+      !form.researchKeywords.trim() &&
+      !form.productName.trim()
+    ) {
+      toast(
+        "Add at least one research keyword or a product name before creating trend research automation.",
+        "danger",
+      );
+      return;
+    }
 
     setSaving(true);
 
@@ -113,8 +156,10 @@ export function AutomationsPage() {
         projectId: form.projectId || null,
         brandVoiceProfileId: form.brandVoiceProfileId || null,
         timezone: form.timezone.trim() || "UTC",
-        dayOfWeek: cadence === "weekly" ? Number(form.dayOfWeek) : null,
-        dayOfMonth: cadence === "monthly" ? Number(form.dayOfMonth) : null,
+        dayOfWeek:
+          cadence === "weekly" ? Number(form.dayOfWeek) : null,
+        dayOfMonth:
+          cadence === "monthly" ? Number(form.dayOfMonth) : null,
         hour: Number(form.hour),
         minute: Number(form.minute),
         config: {
@@ -122,11 +167,23 @@ export function AutomationsPage() {
           targetAudience: form.targetAudience.trim(),
           offer: form.offer.trim(),
           cta: form.cta.trim(),
+          campaignGoal: form.campaignGoal.trim(),
+          researchKeywords: form.researchKeywords.trim(),
+          redditSubreddits: form.redditSubreddits.trim(),
+          researchLocationCode:
+            form.researchLocationCode.trim() || "2840",
+          researchLanguageCode:
+            form.researchLanguageCode.trim() || "en",
+          researchTimeRange:
+            form.researchTimeRange.trim() || "past_7_days",
         },
       };
 
       if (mode === "mock") {
         const now = new Date().toISOString();
+        const matchedProject = projects.find(
+          (project) => project.id === payload.projectId,
+        );
 
         const item: Automation = {
           id: `automation_${Date.now()}`,
@@ -150,11 +207,11 @@ export function AutomationsPage() {
           failureCount: 0,
           createdAt: now,
           updatedAt: now,
-          project: projects.find((project) => project.id === payload.projectId)
+          project: matchedProject
             ? {
-                id: payload.projectId ?? "",
-                name: projects.find((project) => project.id === payload.projectId)?.name ?? "",
-                emoji: projects.find((project) => project.id === payload.projectId)?.emoji ?? null,
+                id: matchedProject.id,
+                name: matchedProject.name,
+                emoji: matchedProject.emoji ?? null,
               }
             : null,
           brandVoiceProfile: null,
@@ -183,10 +240,19 @@ export function AutomationsPage() {
       if (mode === "mock") {
         setItems((current) =>
           current.map((entry) =>
-            entry.id === item.id ? { ...entry, enabled: !entry.enabled } : entry
-          )
+            entry.id === item.id
+              ? {
+                  ...entry,
+                  enabled: !entry.enabled,
+                }
+              : entry,
+          ),
         );
-        toast(item.enabled ? "Automation disabled" : "Automation enabled", "info");
+
+        toast(
+          item.enabled ? "Automation disabled" : "Automation enabled",
+          "info",
+        );
         return;
       }
 
@@ -195,9 +261,15 @@ export function AutomationsPage() {
         : await automations.enable(item.id);
 
       setItems((current) =>
-        current.map((entry) => (entry.id === item.id ? response.automation : entry))
+        current.map((entry) =>
+          entry.id === item.id ? response.automation : entry,
+        ),
       );
-      toast(item.enabled ? "Automation disabled" : "Automation enabled", "info");
+
+      toast(
+        item.enabled ? "Automation disabled" : "Automation enabled",
+        "info",
+      );
     } catch (error) {
       toast(friendlyError(error), "danger");
     }
@@ -219,129 +291,185 @@ export function AutomationsPage() {
 
   async function deleteAutomation(item: Automation) {
     const confirmed = window.confirm(`Delete "${item.name}"?`);
-    if (!confirmed) return;
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       if (mode === "live") {
         await automations.delete(item.id);
       }
 
-      setItems((current) => current.filter((entry) => entry.id !== item.id));
+      setItems((current) =>
+        current.filter((entry) => entry.id !== item.id),
+      );
       toast("Automation deleted", "info");
     } catch (error) {
       toast(friendlyError(error), "danger");
     }
   }
 
-  const enabledCount = useMemo(() => items.filter((item) => item.enabled).length, [items]);
+  const enabledCount = useMemo(
+    () => items.filter((item) => item.enabled).length,
+    [items],
+  );
 
   return (
     <AppShell
       title="Automations"
-      subtitle="Recurring marketing tasks built on top of workflows and lightweight AI routines."
-      action={<Button onClick={openCreate}>+ New Automation</Button>}
+      eyebrow="Recurring Revenue Operations"
+      actions={<Button onClick={openCreate}>+ New Automation</Button>}
     >
-      <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-3">
-          <Metric title="Total Automations" value={items.length} />
-          <Metric title="Enabled" value={enabledCount} />
-          <Metric title="Disabled" value={items.length - enabledCount} />
-        </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Metric title="Automations" value={items.length} />
+        <Metric title="Enabled" value={enabledCount} />
+        <Metric
+          title="Daily Research"
+          value={
+            items.filter(
+              (item) => item.type === "daily_trend_research",
+            ).length
+          }
+        />
+      </div>
 
+      <Card>
+        <h2 className="text-xl font-semibold text-white">
+          Practical MVP Scope
+        </h2>
+        <p className="mt-2 text-sm text-white/65">
+          This is intentionally not a drag-and-drop Zapier clone. It schedules
+          repeatable marketing work, including daily trend research briefs that
+          can help users spot what to promote and create next.
+        </p>
+      </Card>
+
+      {loading ? (
         <Card>
-          <h2 className="text-lg font-semibold">Practical MVP Scope</h2>
-          <p className="mt-2 text-sm text-white/55">
-            This is intentionally not a drag-and-drop Zapier clone. It schedules repeatable marketing work and
-            leaves room for stronger workers, notifications, and richer retry controls later.
-          </p>
+          <div className="text-sm text-white/65">
+            Loading automations…
+          </div>
         </Card>
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="No automations yet"
+          body="Create a scheduled marketing automation to reduce manual recurring work."
+          action={<Button onClick={openCreate}>+ Create Automation</Button>}
+        />
+      ) : (
+        <div className="grid gap-4">
+          {items.map((item) => (
+            <Card key={item.id}>
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-white">
+                      {item.name}
+                    </h2>
 
-        {loading ? (
-          <Card>
-            <div className="text-sm text-white/55">Loading automations…</div>
-          </Card>
-        ) : items.length === 0 ? (
-          <Card>
-            <EmptyState
-              icon="⏱️"
-              title="No automations yet"
-              description="Create a recurring weekly or monthly marketing automation for a campaign workspace."
-              action={<Button onClick={openCreate}>+ Create Automation</Button>}
-            />
-          </Card>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {items.map((item) => (
-              <Card key={item.id}>
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold">{item.name}</h2>
-                      <Badge>{item.enabled ? "enabled" : "disabled"}</Badge>
-                      <Badge>{item.cadence}</Badge>
+                    <Badge tone={item.enabled ? "emerald" : "slate"}>
+                      {item.enabled ? "enabled" : "disabled"}
+                    </Badge>
+
+                    <Badge tone="violet">{item.cadence}</Badge>
+
+                    {item.type === "daily_trend_research" ? (
+                      <Badge tone="amber">Trend Research</Badge>
+                    ) : null}
+                  </div>
+
+                  <p className="mt-3 text-sm text-white/65">
+                    {automationDescription(item.type)}
+                  </p>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <Info
+                      label="Next Run"
+                      value={formatDate(item.nextRunAt)}
+                    />
+                    <Info
+                      label="Last Run"
+                      value={formatDate(item.lastRunAt)}
+                    />
+                    <Info
+                      label="Last Status"
+                      value={item.lastStatus ?? "—"}
+                    />
+                  </div>
+
+                  {item.lastError ? (
+                    <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-100">
+                      {item.lastError}
                     </div>
-                    <p className="mt-2 text-sm text-white/55">{automationDescription(item.type)}</p>
-                  </div>
+                  ) : null}
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  <Info label="Project" value={item.project?.name ?? "No project"} />
-                  <Info label="Brand Profile" value={item.brandVoiceProfile?.brandName ?? "None"} />
-                  <Info label="Next Run" value={formatDate(item.nextRunAt)} />
-                  <Info label="Last Run" value={formatDate(item.lastRunAt)} />
-                  <Info label="Last Status" value={item.lastStatus ?? "Never run"} />
-                  <Info label="Timezone" value={item.timezone} />
-                </div>
-
-                {item.lastError ? (
-                  <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-                    {item.lastError}
-                  </div>
-                ) : null}
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => void toggleAutomation(item)}>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void toggleAutomation(item)}
+                  >
                     {item.enabled ? "Disable" : "Enable"}
                   </Button>
-                  <Button variant="secondary" onClick={() => void runNow(item)}>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => void runNow(item)}
+                  >
                     Run Now
                   </Button>
-                  <Button variant="secondary" onClick={() => void deleteAutomation(item)}>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => void deleteAutomation(item)}
+                  >
                     Delete
                   </Button>
                 </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Modal
         open={modalOpen}
         onClose={closeCreate}
-        title="Create Marketing Automation"
+        title="Create Automation"
         footer={
-          <>
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={closeCreate}>
               Cancel
             </Button>
-            <Button loading={saving} onClick={() => void createAutomation()}>
-              Create Automation
+            <Button
+              onClick={() => void createAutomation()}
+              disabled={saving}
+            >
+              {saving ? "Creating…" : "Create Automation"}
             </Button>
-          </>
+          </div>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-5">
           <Input
-            label="Automation name"
+            label="Automation Name"
             value={form.name}
-            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-            placeholder="e.g. Monday Weekly Content Plan"
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                name: event.target.value,
+              }))
+            }
+            placeholder="e.g. Daily Trend Research - The Simple Digital Path"
             autoFocus
           />
 
-          <label className="space-y-2 block">
-            <div className="text-sm text-white/70">Automation Type</div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-white/75">
+              Automation Type
+            </div>
+
             <select
               value={form.type}
               onChange={(event) =>
@@ -352,34 +480,58 @@ export function AutomationsPage() {
               }
               className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
             >
-              <option value="weekly_content_plan">Weekly Content Plan</option>
-              <option value="monthly_campaign_ideas">Monthly Campaign Ideas</option>
-              <option value="weekly_task_recommendation">Weekly Marketing Task Recommendation</option>
+              <option value="daily_trend_research">
+                Daily Trend Research Automation
+              </option>
+              <option value="weekly_content_plan">
+                Weekly Content Plan
+              </option>
+              <option value="monthly_campaign_ideas">
+                Monthly Campaign Ideas
+              </option>
+              <option value="weekly_task_recommendation">
+                Weekly Marketing Task Recommendation
+              </option>
             </select>
-          </label>
+          </div>
 
-          <label className="space-y-2 block">
-            <div className="text-sm text-white/70">Project / Campaign</div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-white/75">
+              Project / Campaign
+            </div>
+
             <select
               value={form.projectId}
-              onChange={(event) => setForm((current) => ({ ...current, projectId: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  projectId: event.target.value,
+                }))
+              }
               className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
             >
               <option value="">No project selected</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
-                  {project.emoji} {project.name}
+                  {project.emoji ? `${project.emoji} ` : ""}
+                  {project.name}
                 </option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label className="space-y-2 block">
-            <div className="text-sm text-white/70">Brand Voice Profile</div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-white/75">
+              Brand Voice Profile
+            </div>
+
             <select
               value={form.brandVoiceProfileId}
               onChange={(event) =>
-                setForm((current) => ({ ...current, brandVoiceProfileId: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  brandVoiceProfileId: event.target.value,
+                }))
               }
               className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
             >
@@ -390,21 +542,34 @@ export function AutomationsPage() {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
+
+          <Input
+            label="Timezone"
+            value={form.timezone}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                timezone: event.target.value,
+              }))
+            }
+          />
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Input
-              label="Timezone"
-              value={form.timezone}
-              onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))}
-            />
-
             {cadence === "weekly" ? (
-              <label className="space-y-2 block">
-                <div className="text-sm text-white/70">Day of Week</div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-white/75">
+                  Day of Week
+                </div>
+
                 <select
                   value={form.dayOfWeek}
-                  onChange={(event) => setForm((current) => ({ ...current, dayOfWeek: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      dayOfWeek: event.target.value,
+                    }))
+                  }
                   className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
                 >
                   <option value="1">Monday</option>
@@ -415,75 +580,228 @@ export function AutomationsPage() {
                   <option value="6">Saturday</option>
                   <option value="7">Sunday</option>
                 </select>
-              </label>
-            ) : (
+              </div>
+            ) : cadence === "monthly" ? (
               <Input
                 label="Day of Month"
-                type="number"
-                min={1}
-                max={31}
                 value={form.dayOfMonth}
-                onChange={(event) => setForm((current) => ({ ...current, dayOfMonth: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    dayOfMonth: event.target.value,
+                  }))
+                }
               />
+            ) : (
+              <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-50/80">
+                Daily automations run every day at the selected time.
+              </div>
             )}
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input
-              label="Hour"
-              type="number"
-              min={0}
-              max={23}
-              value={form.hour}
-              onChange={(event) => setForm((current) => ({ ...current, hour: event.target.value }))}
-            />
-            <Input
-              label="Minute"
-              type="number"
-              min={0}
-              max={59}
-              value={form.minute}
-              onChange={(event) => setForm((current) => ({ ...current, minute: event.target.value }))}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Hour"
+                value={form.hour}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    hour: event.target.value,
+                  }))
+                }
+              />
+
+              <Input
+                label="Minute"
+                value={form.minute}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    minute: event.target.value,
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <Input
-            label="Product / Offer Name"
+            label="Product / Item"
             value={form.productName}
-            onChange={(event) => setForm((current) => ({ ...current, productName: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                productName: event.target.value,
+              }))
+            }
+            placeholder="e.g. The Simple Digital Path"
           />
 
-          <Textarea
+          <Input
             label="Target Audience"
-            rows={2}
             value={form.targetAudience}
-            onChange={(event) => setForm((current) => ({ ...current, targetAudience: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                targetAudience: event.target.value,
+              }))
+            }
+            placeholder="Who is this automation focused on?"
           />
 
           <Textarea
             label="Offer Details"
             rows={2}
             value={form.offer}
-            onChange={(event) => setForm((current) => ({ ...current, offer: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                offer: event.target.value,
+              }))
+            }
+            placeholder="The offer, lead magnet, product, course, or affiliate angle."
+          />
+
+          <Textarea
+            label="Campaign Goal"
+            rows={2}
+            value={form.campaignGoal}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                campaignGoal: event.target.value,
+              }))
+            }
+            placeholder="What should the automation help create, decide, or push?"
           />
 
           <Input
             label="CTA"
             value={form.cta}
-            onChange={(event) => setForm((current) => ({ ...current, cta: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                cta: event.target.value,
+              }))
+            }
+            placeholder="e.g. Download the free guide"
           />
+
+          {isDailyTrendResearch ? (
+            <div className="space-y-5 rounded-3xl border border-amber-400/20 bg-amber-500/10 p-4">
+              <div>
+                <Badge tone="amber">Trend Research Configuration</Badge>
+                <p className="mt-3 text-sm text-amber-50/80">
+                  This automation collects trend/search signals on a schedule,
+                  then turns them into a saved opportunity brief and action
+                  plan.
+                </p>
+              </div>
+
+              <Textarea
+                label="Research Keywords"
+                rows={4}
+                value={form.researchKeywords}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    researchKeywords: event.target.value,
+                  }))
+                }
+                placeholder={`One per line or comma-separated:
+beginner digital products
+how to start selling digital products
+passive income templates
+low cost online business ideas`}
+              />
+
+              <Textarea
+                label="Reddit Subreddits"
+                rows={3}
+                value={form.redditSubreddits}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    redditSubreddits: event.target.value,
+                  }))
+                }
+                placeholder={`Optional, one per line:
+Entrepreneur
+sidehustle
+digitalproducts`}
+              />
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <Input
+                  label="Location Code"
+                  value={form.researchLocationCode}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      researchLocationCode: event.target.value,
+                    }))
+                  }
+                  placeholder="2840"
+                />
+
+                <Input
+                  label="Language Code"
+                  value={form.researchLanguageCode}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      researchLanguageCode: event.target.value,
+                    }))
+                  }
+                  placeholder="en"
+                />
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-white/75">
+                    Research Window
+                  </div>
+
+                  <select
+                    value={form.researchTimeRange}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        researchTimeRange: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
+                  >
+                    <option value="past_day">Past day</option>
+                    <option value="past_7_days">Past 7 days</option>
+                    <option value="past_30_days">Past 30 days</option>
+                    <option value="past_90_days">Past 90 days</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </Modal>
     </AppShell>
   );
 }
 
-function automationCadence(type: Automation["type"]): "weekly" | "monthly" {
-  return type === "monthly_campaign_ideas" ? "monthly" : "weekly";
+function automationCadence(
+  type: Automation["type"],
+): AutomationCadence {
+  if (type === "daily_trend_research") {
+    return "daily";
+  }
+
+  if (type === "monthly_campaign_ideas") {
+    return "monthly";
+  }
+
+  return "weekly";
 }
 
 function automationDescription(type: Automation["type"]) {
   switch (type) {
+    case "daily_trend_research":
+      return "Runs daily trend and opportunity research, then saves a market brief, monetization angles, and today's action plan.";
     case "weekly_content_plan":
       return "Runs a weekly content workflow for the selected campaign.";
     case "monthly_campaign_ideas":
@@ -499,19 +817,35 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "—";
 }
 
-function Metric({ title, value }: { title: string; value: number }) {
+function Metric({
+  title,
+  value,
+}: {
+  title: string;
+  value: number;
+}) {
   return (
     <Card>
-      <div className="text-xs uppercase tracking-[0.18em] text-white/40 font-semibold">{title}</div>
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+        {title}
+      </div>
       <div className="mt-3 text-3xl font-semibold">{value}</div>
     </Card>
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-white/40 font-semibold">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+        {label}
+      </div>
       <div className="mt-2 text-sm text-white/70">{value}</div>
     </div>
   );
