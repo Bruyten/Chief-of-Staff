@@ -1,8 +1,10 @@
 import { DateTime } from "luxon";
+
 import { prisma } from "../lib/prisma.js";
 import { errors } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { env } from "../env.js";
+
 import { consumeVideoCredit } from "./videoCredits.service.js";
 import { refundVideoJobUsageOnce } from "./usage.service.js";
 import {
@@ -16,7 +18,11 @@ function nextPollTime(minutesFromNow: number) {
 }
 
 function isTerminal(status: string) {
-  return status === "completed" || status === "failed" || status === "canceled";
+  return (
+    status === "completed" ||
+    status === "failed" ||
+    status === "canceled"
+  );
 }
 
 export async function listVideoJobsForUser(userId: string) {
@@ -54,7 +60,10 @@ export async function listVideoJobsForUser(userId: string) {
   });
 }
 
-export async function getVideoJobForUser(userId: string, jobId: string) {
+export async function getVideoJobForUser(
+  userId: string,
+  jobId: string,
+) {
   const job = await prisma.videoJob.findFirst({
     where: {
       id: jobId,
@@ -94,7 +103,7 @@ export async function getVideoJobForUser(userId: string, jobId: string) {
 
 export async function createVideoJob(
   userId: string,
-  input: VideoStudioCreateInput
+  input: VideoStudioCreateInput,
 ) {
   const provider = getVideoProvider();
   const brief = await buildVideoPromptBrief(userId, input);
@@ -128,6 +137,7 @@ export async function createVideoJob(
       aspectRatio: input.aspectRatio,
       durationSeconds: input.durationSeconds,
       title: input.title,
+      referenceImages: input.referenceImages ?? [],
     });
 
     const updated = await prisma.videoJob.update({
@@ -177,7 +187,7 @@ export async function createVideoJob(
         err: error,
         videoJobId: job.id,
       },
-      "Video provider submission failed"
+      "Video provider submission failed",
     );
 
     await prisma.videoJob.update({
@@ -197,11 +207,11 @@ export async function createVideoJob(
     await refundVideoJobUsageOnce(
       userId,
       job.id,
-      "video_provider_submission_rejected"
+      "video_provider_submission_rejected",
     );
 
     throw errors.server(
-      "Video provider submission failed. Your video credit was refunded."
+      "Video provider submission failed. Your video credit was refunded.",
     );
   }
 }
@@ -220,7 +230,9 @@ export async function pollSingleVideoJob(jobId: string) {
   }
 
   if (!job.externalJobId) {
-    throw errors.badRequest("Video job has no external provider job ID");
+    throw errors.badRequest(
+      "Video job has no external provider job ID",
+    );
   }
 
   if (isTerminal(job.status)) {
@@ -250,8 +262,13 @@ export async function pollSingleVideoJob(jobId: string) {
       thumbnailUrl: result.thumbnailUrl ?? job.thumbnailUrl,
       errorMsg: result.errorMessage ?? job.errorMsg,
       completedAt:
-        normalizedStatus === "completed" ? new Date() : job.completedAt,
-      failedAt: normalizedStatus === "failed" ? new Date() : job.failedAt,
+        normalizedStatus === "completed"
+          ? new Date()
+          : job.completedAt,
+      failedAt:
+        normalizedStatus === "failed"
+          ? new Date()
+          : job.failedAt,
       pollAttempts: {
         increment: 1,
       },
@@ -265,21 +282,25 @@ export async function pollSingleVideoJob(jobId: string) {
     await refundVideoJobUsageOnce(
       job.userId,
       job.id,
-      "video_provider_terminal_failure"
+      "video_provider_terminal_failure",
     );
   }
 
   return updated;
 }
 
-export async function refreshVideoJobForUser(userId: string, jobId: string) {
+export async function refreshVideoJobForUser(
+  userId: string,
+  jobId: string,
+) {
   await getVideoJobForUser(userId, jobId);
   await pollSingleVideoJob(jobId);
+
   return getVideoJobForUser(userId, jobId);
 }
 
 export async function claimVideoJobsDueForPoll(
-  limit = env.VIDEO_POLL_BATCH_SIZE
+  limit = env.VIDEO_POLL_BATCH_SIZE,
 ) {
   const now = new Date();
   const lockUntil = nextPollTime(20);
@@ -348,7 +369,9 @@ export async function claimVideoJobsDueForPoll(
   return claimedIds;
 }
 
-export async function pollDueVideoJobs(limit = env.VIDEO_POLL_BATCH_SIZE) {
+export async function pollDueVideoJobs(
+  limit = env.VIDEO_POLL_BATCH_SIZE,
+) {
   const claimedIds = await claimVideoJobsDueForPoll(limit);
 
   for (const jobId of claimedIds) {
@@ -360,7 +383,7 @@ export async function pollDueVideoJobs(limit = env.VIDEO_POLL_BATCH_SIZE) {
           err: error,
           videoJobId: jobId,
         },
-        "Video job poll failed"
+        "Video job poll failed",
       );
 
       await prisma.videoJob.update({
