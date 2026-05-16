@@ -259,9 +259,7 @@ async function getRedditAccessToken(): Promise<string> {
   const clientSecret = env.REDDIT_CLIENT_SECRET.trim();
 
   if (!clientId || !clientSecret) {
-    throw new Error(
-      "Reddit OAuth credentials are missing.",
-    );
+    throw new Error("Reddit OAuth credentials are missing.");
   }
 
   const body = new URLSearchParams({
@@ -336,9 +334,7 @@ async function searchReddit(input: {
   const parsed = asRecord(await readJson(response));
 
   if (!response.ok) {
-    throw new Error(
-      `Reddit search failed with HTTP ${response.status}.`,
-    );
+    throw new Error(`Reddit search failed with HTTP ${response.status}.`);
   }
 
   const children = asArray(asRecord(parsed.data).children);
