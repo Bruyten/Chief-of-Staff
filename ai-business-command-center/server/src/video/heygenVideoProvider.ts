@@ -227,9 +227,15 @@ async function uploadReferenceImages(
   for (const image of images) {
     const form = new FormData();
 
+    /**
+     * Convert Node Buffer into a fresh Uint8Array before creating Blob.
+     * This avoids TypeScript's Buffer/BlobPart SharedArrayBuffer typing conflict.
+     */
+    const safeImageBytes = Uint8Array.from(image.buffer);
+
     form.append(
       "file",
-      new Blob([image.buffer], { type: image.mimeType }),
+      new Blob([safeImageBytes], { type: image.mimeType }),
       image.originalName,
     );
 
