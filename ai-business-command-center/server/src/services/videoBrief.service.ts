@@ -102,13 +102,8 @@ export async function buildVideoPromptBrief(
       })
     : null;
 
-  if (
-    input.sourceType === "workflow_run" &&
-    !sourceWorkflowRun
-  ) {
-    throw errors.notFound(
-      "Selected workflow run was not found",
-    );
+  if (input.sourceType === "workflow_run" && !sourceWorkflowRun) {
+    throw errors.notFound("Selected workflow run was not found");
   }
 
   if (
@@ -153,10 +148,17 @@ export async function buildVideoPromptBrief(
   if (referenceImages.length > 0) {
     lines.push(
       "",
-      "Reference image guidance:",
-      `- ${referenceImages.length} user-supplied image${referenceImages.length === 1 ? "" : "s"} are attached for this video.`,
-      "- Treat attached product covers, screenshots, or promotional visuals as important source material.",
-      "- If an attached image contains readable title text, preserve its meaning and do not intentionally misrepresent the product.",
+      "MANDATORY ATTACHED IMAGE REQUIREMENTS:",
+      `- ${referenceImages.length} user-supplied image${
+        referenceImages.length === 1 ? "" : "s"
+      } are attached to this video request.`,
+      "- The attached image assets are not optional background context. They are core product visuals for the video.",
+      "- The final video must visibly include the attached product image or images on screen.",
+      "- For a product cover, guide cover, mockup, or offer graphic, show it clearly and prominently as the thing being promoted.",
+      "- Do not silently ignore the attached product visual.",
+      "- Do not replace the uploaded product visual with an unrelated AI-generated substitute.",
+      "- Do not rewrite, distort, or fabricate readable title text from the uploaded cover.",
+      "- Use the uploaded image itself where a product visual is needed.",
     );
 
     if (input.referenceImageInstructions?.trim()) {
@@ -165,7 +167,7 @@ export async function buildVideoPromptBrief(
       );
     } else {
       lines.push(
-        "- Use the attached images naturally as relevant branded/product visuals in the video.",
+        "- Use the attached images naturally as visible, accurate branded/product visuals in the video.",
       );
     }
 
@@ -192,10 +194,18 @@ export async function buildVideoPromptBrief(
         "",
         "Brand voice context:",
         `- Brand: ${project.brandVoiceProfile.brandName}`,
-        `- Tone: ${project.brandVoiceProfile.toneOfVoice || "(not provided)"}`,
-        `- Value proposition: ${project.brandVoiceProfile.valueProposition || "(not provided)"}`,
-        `- Preferred CTAs: ${project.brandVoiceProfile.preferredCtas || "(not provided)"}`,
-        `- Avoid: ${project.brandVoiceProfile.bannedPhrases || "(not provided)"}`,
+        `- Tone: ${
+          project.brandVoiceProfile.toneOfVoice || "(not provided)"
+        }`,
+        `- Value proposition: ${
+          project.brandVoiceProfile.valueProposition || "(not provided)"
+        }`,
+        `- Preferred CTAs: ${
+          project.brandVoiceProfile.preferredCtas || "(not provided)"
+        }`,
+        `- Avoid: ${
+          project.brandVoiceProfile.bannedPhrases || "(not provided)"
+        }`,
       );
     }
   }
@@ -234,7 +244,9 @@ export async function buildVideoPromptBrief(
   lines.push(
     "",
     "Output intent:",
-    "Use the above material to generate a concise, visually coherent short marketing video.",
+    referenceImages.length > 0
+      ? "Use the above material to generate a concise, visually coherent short marketing video that visibly features the attached product visual in the final rendered video."
+      : "Use the above material to generate a concise, visually coherent short marketing video.",
   );
 
   return {
