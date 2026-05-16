@@ -10,6 +10,23 @@ export type ScheduleInput = {
   from?: Date;
 };
 
+type WeekdayNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+function normalizeWeekday(value: number | null | undefined): WeekdayNumber {
+  switch (value) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+      return value;
+    default:
+      return 1;
+  }
+}
+
 export function computeNextRunAt(input: ScheduleInput) {
   const zone = input.timezone || "UTC";
 
@@ -37,7 +54,7 @@ export function computeNextRunAt(input: ScheduleInput) {
   }
 
   if (input.cadence === "weekly") {
-    const weekday = input.dayOfWeek ?? 1;
+    const weekday = normalizeWeekday(input.dayOfWeek);
 
     let candidate = base.set({
       weekday,
