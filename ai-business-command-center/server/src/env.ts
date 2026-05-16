@@ -63,17 +63,7 @@ const schema = z
       .max(100)
       .default(10),
 
-    DATAFORSEO_LOGIN: z.string().optional().default(""),
-    DATAFORSEO_PASSWORD: z.string().optional().default(""),
-
-    RESEARCH_REDDIT_ENABLED: z
-      .string()
-      .optional()
-      .transform((value) => value === "true" || value === "1"),
-
-    REDDIT_CLIENT_ID: z.string().optional().default(""),
-    REDDIT_CLIENT_SECRET: z.string().optional().default(""),
-    REDDIT_USER_AGENT: z.string().optional().default(""),
+    TAVILY_API_KEY: z.string().optional().default(""),
 
     RESEARCH_PROVIDER_TIMEOUT_MS: z.coerce
       .number()
@@ -127,24 +117,6 @@ const schema = z
         message:
           "VIDEO_PROVIDER_API_KEY is required for live video providers",
       });
-    }
-
-    if (value.RESEARCH_REDDIT_ENABLED) {
-      const requiredReddit = [
-        "REDDIT_CLIENT_ID",
-        "REDDIT_CLIENT_SECRET",
-        "REDDIT_USER_AGENT",
-      ] as const;
-
-      for (const key of requiredReddit) {
-        if (!value[key]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} is required when RESEARCH_REDDIT_ENABLED is true`,
-          });
-        }
-      }
     }
   });
 
