@@ -44,7 +44,8 @@ async function refreshCsrfToken(): Promise<string> {
     throw new ApiException({
       status: response.status,
       code: "CSRF_TOKEN_FETCH_FAILED",
-      message: "Could not initialize request security. Please refresh and try again.",
+      message:
+        "Could not initialize request security. Please refresh and try again.",
     });
   }
 
@@ -73,7 +74,7 @@ async function getCsrfToken(): Promise<string> {
   return refreshCsrfToken();
 }
 
-export async function api<T = unknown>(
+export async function api<T>(
   path: string,
   opts: RequestOptions = {},
 ): Promise<T> {
@@ -89,9 +90,7 @@ export async function api<T = unknown>(
       credentials: "include",
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(mutating && csrfToken
-          ? { "X-CSRF-Token": csrfToken }
-          : {}),
+        ...(mutating && csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       signal,
@@ -140,7 +139,7 @@ export async function api<T = unknown>(
 
   if (text) {
     try {
-      payload = JSON.parse(text);
+      payload = JSON.parse(text) as unknown;
     } catch {
       payload = null;
     }
@@ -148,9 +147,11 @@ export async function api<T = unknown>(
 
   if (!res.ok) {
     const errBody = (
-      payload as {
-        error?: Partial<ApiError>;
-      } | null
+      payload as
+        | {
+            error?: Partial<ApiError>;
+          }
+        | null
     )?.error;
 
     throw new ApiException({
@@ -202,11 +203,19 @@ export type Project = {
   campaignGoal: string | null;
   targetAudience: string | null;
   offer: string | null;
-  campaignStatus: "planning" | "active" | "paused" | "completed" | null;
+  campaignStatus:
+    | "planning"
+    | "active"
+    | "paused"
+    | "completed"
+    | null;
   launchDate: string | null;
   brandVoiceProfileId: string | null;
   brandVoiceProfile?:
-    | { id: string; brandName: string }
+    | {
+        id: string;
+        brandName: string;
+      }
     | BrandVoiceProfile
     | null;
   productCount: number;
@@ -272,10 +281,19 @@ export type ChatConversation = {
   lastMessageAt: string | null;
   createdAt: string;
   updatedAt: string;
-  project?: { id: string; name: string; emoji: string | null } | null;
-  brandVoiceProfile?: { id: string; brandName: string } | null;
+  project?: {
+    id: string;
+    name: string;
+    emoji: string | null;
+  } | null;
+  brandVoiceProfile?: {
+    id: string;
+    brandName: string;
+  } | null;
   messages?: ChatMessage[];
-  _count?: { messages: number };
+  _count?: {
+    messages: number;
+  };
 };
 
 export type ChatMessage = {
@@ -335,10 +353,25 @@ export type WorkflowRun = {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  project?: { id: string; name: string; emoji: string | null } | null;
-  brandVoiceProfile?: { id: string; brandName: string } | null;
+  project?: {
+    id: string;
+    name: string;
+    emoji: string | null;
+  } | null;
+  brandVoiceProfile?: {
+    id: string;
+    brandName: string;
+  } | null;
   steps: WorkflowRunStep[];
 };
+
+export type AutomationType =
+  | "daily_trend_research"
+  | "weekly_content_plan"
+  | "monthly_campaign_ideas"
+  | "weekly_task_recommendation";
+
+export type AutomationCadence = "daily" | "weekly" | "monthly";
 
 export type Automation = {
   id: string;
@@ -346,11 +379,8 @@ export type Automation = {
   projectId: string | null;
   brandVoiceProfileId: string | null;
   name: string;
-  type:
-    | "weekly_content_plan"
-    | "monthly_campaign_ideas"
-    | "weekly_task_recommendation";
-  cadence: "weekly" | "monthly";
+  type: AutomationType;
+  cadence: AutomationCadence;
   enabled: boolean;
   timezone: string;
   dayOfWeek: number | null;
@@ -365,8 +395,15 @@ export type Automation = {
   failureCount: number;
   createdAt: string;
   updatedAt: string;
-  project?: { id: string; name: string; emoji: string | null } | null;
-  brandVoiceProfile?: { id: string; brandName: string } | null;
+  project?: {
+    id: string;
+    name: string;
+    emoji: string | null;
+  } | null;
+  brandVoiceProfile?: {
+    id: string;
+    brandName: string;
+  } | null;
   runs?: AutomationRun[];
 };
 
@@ -422,9 +459,21 @@ export type VideoJob = {
   pollAttempts: number;
   createdAt: string;
   updatedAt: string;
-  project?: { id: string; name: string; emoji: string | null } | null;
-  sourceOutput?: { id: string; title: string; type: string } | null;
-  sourceWorkflowRun?: { id: string; title: string; status: string } | null;
+  project?: {
+    id: string;
+    name: string;
+    emoji: string | null;
+  } | null;
+  sourceOutput?: {
+    id: string;
+    title: string;
+    type: string;
+  } | null;
+  sourceWorkflowRun?: {
+    id: string;
+    title: string;
+    status: string;
+  } | null;
 };
 
 export type DashboardCommandCenter = {
@@ -457,7 +506,11 @@ export type DashboardCommandCenter = {
     lastRunAt: string | null;
     lastStatus: string | null;
     lastError: string | null;
-    project: { id: string; name: string; emoji: string | null } | null;
+    project: {
+      id: string;
+      name: string;
+      emoji: string | null;
+    } | null;
     latestRun: {
       id: string;
       status: string;
@@ -473,7 +526,11 @@ export type DashboardCommandCenter = {
     projectId: string | null;
     createdAt: string;
     updatedAt: string;
-    project: { id: string; name: string; emoji: string | null } | null;
+    project: {
+      id: string;
+      name: string;
+      emoji: string | null;
+    } | null;
   }>;
   recentWorkflowRuns: Array<{
     id: string;
@@ -484,7 +541,11 @@ export type DashboardCommandCenter = {
     startedAt: string;
     completedAt: string | null;
     updatedAt: string;
-    project: { id: string; name: string; emoji: string | null } | null;
+    project: {
+      id: string;
+      name: string;
+      emoji: string | null;
+    } | null;
   }>;
   recentlyActiveProject: {
     id: string;
@@ -533,7 +594,8 @@ export const auth = {
 export const projects = {
   list: () => api<{ projects: Project[] }>("/api/projects"),
 
-  get: (id: string) => api<{ project: Project }>(`/api/projects/${id}`),
+  get: (id: string) =>
+    api<{ project: Project }>(`/api/projects/${id}`),
 
   create: (data: {
     name: string;
@@ -625,7 +687,10 @@ export const outputs = {
 export const generate = {
   run: (
     skill: string,
-    data: { projectId?: string; context: Record<string, unknown> },
+    data: {
+      projectId?: string;
+      context: Record<string, unknown>;
+    },
   ) =>
     api<GenerateResult>(`/api/generate/${skill}`, {
       method: "POST",
@@ -667,7 +732,9 @@ export type BillingMe = {
 
 export const billing = {
   plans: () =>
-    api<{ plans: BillingPlan[]; fakeStripe: boolean }>("/api/billing/plans"),
+    api<{ plans: BillingPlan[]; fakeStripe: boolean }>(
+      "/api/billing/plans",
+    ),
 
   me: () => api<BillingMe>("/api/billing/me"),
 
@@ -695,7 +762,8 @@ export const billing = {
 };
 
 export const brandVoices = {
-  list: () => api<{ profiles: BrandVoiceProfile[] }>("/api/brand-voices"),
+  list: () =>
+    api<{ profiles: BrandVoiceProfile[] }>("/api/brand-voices"),
 
   get: (id: string) =>
     api<{ profile: BrandVoiceProfile }>(`/api/brand-voices/${id}`),
@@ -719,10 +787,15 @@ export const brandVoices = {
 };
 
 export const chiefChat = {
-  list: () => api<{ conversations: ChatConversation[] }>("/api/chat/conversations"),
+  list: () =>
+    api<{ conversations: ChatConversation[] }>(
+      "/api/chat/conversations",
+    ),
 
   get: (id: string) =>
-    api<{ conversation: ChatConversation }>(`/api/chat/conversations/${id}`),
+    api<{ conversation: ChatConversation }>(
+      `/api/chat/conversations/${id}`,
+    ),
 
   create: (data: {
     title?: string;
@@ -735,10 +808,13 @@ export const chiefChat = {
     }),
 
   update: (id: string, data: { title?: string; archived?: boolean }) =>
-    api<{ conversation: ChatConversation }>(`/api/chat/conversations/${id}`, {
-      method: "PATCH",
-      body: data,
-    }),
+    api<{ conversation: ChatConversation }>(
+      `/api/chat/conversations/${id}`,
+      {
+        method: "PATCH",
+        body: data,
+      },
+    ),
 
   delete: (id: string) =>
     api<{ ok: true }>(`/api/chat/conversations/${id}`, {
@@ -757,7 +833,8 @@ export const chiefChat = {
 };
 
 export const workflows = {
-  templates: () => api<{ templates: WorkflowTemplate[] }>("/api/workflows/templates"),
+  templates: () =>
+    api<{ templates: WorkflowTemplate[] }>("/api/workflows/templates"),
 
   runs: () => api<{ runs: WorkflowRun[] }>("/api/workflows/runs"),
 
@@ -778,7 +855,8 @@ export const workflows = {
 };
 
 export const automations = {
-  list: () => api<{ automations: Automation[] }>("/api/automations"),
+  list: () =>
+    api<{ automations: Automation[] }>("/api/automations"),
 
   get: (id: string) =>
     api<{ automation: Automation }>(`/api/automations/${id}`),
@@ -812,14 +890,20 @@ export const automations = {
     }),
 
   enable: (id: string) =>
-    api<{ automation: Automation }>(`/api/automations/${id}/enable`, {
-      method: "POST",
-    }),
+    api<{ automation: Automation }>(
+      `/api/automations/${id}/enable`,
+      {
+        method: "POST",
+      },
+    ),
 
   disable: (id: string) =>
-    api<{ automation: Automation }>(`/api/automations/${id}/disable`, {
-      method: "POST",
-    }),
+    api<{ automation: Automation }>(
+      `/api/automations/${id}/disable`,
+      {
+        method: "POST",
+      },
+    ),
 
   runNow: (id: string) =>
     api<{ run: AutomationRun }>(`/api/automations/${id}/run-now`, {
@@ -836,7 +920,8 @@ export const dashboard = {
 };
 
 export const videoStudio = {
-  jobs: () => api<{ jobs: VideoJob[] }>("/api/video-studio/jobs"),
+  jobs: () =>
+    api<{ jobs: VideoJob[] }>("/api/video-studio/jobs"),
 
   get: (id: string) =>
     api<{ job: VideoJob }>(`/api/video-studio/jobs/${id}`),
@@ -853,13 +938,13 @@ export const videoStudio = {
     toneStyle: string;
     cta?: string;
   }) =>
-    api<{ job: VideoJob; videoCreditsRemaining: number }>(
-      "/api/video-studio/jobs",
-      {
-        method: "POST",
-        body: data,
-      },
-    ),
+    api<{
+      job: VideoJob;
+      videoCreditsRemaining: number;
+    }>("/api/video-studio/jobs", {
+      method: "POST",
+      body: data,
+    }),
 
   refresh: (id: string) =>
     api<{ job: VideoJob }>(`/api/video-studio/jobs/${id}/refresh`, {
@@ -867,9 +952,9 @@ export const videoStudio = {
     }),
 };
 
-export function friendlyError(e: unknown): string {
-  if (e instanceof ApiException) {
-    switch (e.code) {
+export function friendlyError(error: unknown): string {
+  if (error instanceof ApiException) {
+    switch (error.code) {
       case "NETWORK":
         return "Can't reach the server.\nIs it running?";
       case "VALIDATION":
@@ -877,18 +962,17 @@ export function friendlyError(e: unknown): string {
       case "UNAUTHORIZED":
         return "Your session expired. Please sign in again.";
       case "FORBIDDEN":
-        return e.message || "You do not have permission to do that.";
+        return error.message || "You do not have permission to do that.";
       case "NOT_FOUND":
         return "That item could not be found.";
       case "PAYMENT_REQUIRED":
       case "OUT_OF_CREDITS":
-        return e.message;
       case "RATE_LIMITED":
-        return e.message;
+        return error.message;
       default:
-        return e.message || "Something went wrong.";
+        return error.message || "Something went wrong.";
     }
   }
 
-  return e instanceof Error ? e.message : "Something went wrong.";
+  return error instanceof Error ? error.message : "Something went wrong.";
 }
