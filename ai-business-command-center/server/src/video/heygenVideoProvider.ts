@@ -5,6 +5,7 @@ import type {
   VideoProviderCreateResult,
   VideoProviderPollInput,
   VideoProviderPollResult,
+  VideoProviderReferenceImage,
 } from "./videoProvider.types.js";
 
 const DEFAULT_HEYGEN_BASE_URL = "https://api.heygen.com";
@@ -16,6 +17,15 @@ type HeyGenCreateResponse = {
     status?: string;
     created_at?: number;
     video_id?: string | null;
+  };
+};
+
+type HeyGenAssetUploadResponse = {
+  data?: {
+    asset_id?: string;
+    url?: string;
+    mime_type?: string;
+    size_bytes?: number;
   };
 };
 
@@ -59,6 +69,14 @@ type JsonRequestInit = {
   body?: string;
 };
 
+type UploadedHeyGenAsset = {
+  assetId: string | null;
+  url: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  originalName: string;
+};
+
 export class HeyGenVideoProvider implements VideoProvider {
   readonly name = "heygen";
 
@@ -68,10 +86,22 @@ export class HeyGenVideoProvider implements VideoProvider {
     const prompt = normalizePrompt(input.promptBrief);
     const orientation = toHeyGenOrientation(input.aspectRatio);
 
+    const uploadedAssets = await uploadReferenceImages(
+      input.referenceImages ?? [],
+    );
+
     const payload = {
       prompt,
       mode: "generate",
       ...(orientation ? { orientation } : {}),
+      ...(uploadedAssets.length > 0
+        ? {
+            files: uploadedAssets.map((asset) => ({
+              type: "url",
+              url: asset.url,
+            })),
+          }
+        : {}),
       incognito_mode: true,
     };
 
@@ -79,7 +109,7 @@ export class HeyGenVideoProvider implements VideoProvider {
       "/v3/video-agents",
       {
         method: "POST",
-        headers: createHeaders(),
+        headers: createJsonHeaders(),
         body: JSON.stringify(payload),
       },
     );
@@ -102,6 +132,14 @@ export class HeyGenVideoProvider implements VideoProvider {
         promptCharactersSent: prompt.length,
         orientation: orientation ?? null,
         requestedDurationSeconds: input.durationSeconds,
+        referenceImageCount: uploadedAssets.length,
+        uploadedReferenceAssets: uploadedAssets.map((asset) => ({
+          assetId: asset.assetId,
+          url: asset.url,
+          mimeType: asset.mimeType,
+          sizeBytes: asset.sizeBytes,
+          originalName: asset.originalName,
+        })),
       },
     };
   }
@@ -116,14 +154,14 @@ export class HeyGenVideoProvider implements VideoProvider {
         `/v3/video-agents/${sessionId}`,
         {
           method: "GET",
-          headers: createHeaders(),
+          headers: createJsonHeaders(),
         },
       ),
       requestJson<HeyGenSessionVideosResponse>(
         `/v3/video-agents/${sessionId}/videos`,
         {
           method: "GET",
-          headers: createHeaders(),
+          headers: createJsonHeaders(),
         },
       ),
     ]);
@@ -162,7 +200,8 @@ export class HeyGenVideoProvider implements VideoProvider {
       thumbnailUrl,
       errorMessage:
         normalizedStatus === "failed"
-          ? failureMessage || "HeyGen reported that the video generation failed."
+          ? failureMessage ||
+            "HeyGen reported that the video generation failed."
           : null,
       raw: {
         sessionId: input.externalJobId,
@@ -180,7 +219,65 @@ export class HeyGenVideoProvider implements VideoProvider {
   }
 }
 
-function createHeaders(): Record<string, string> {
+async function uploadReferenceImages(
+  images: VideoProviderReferenceImage[],
+): Promise<UploadedHeyGenAsset[]> {
+  const uploadedAssets: UploadedHeyGenAsset[] = [];
+
+  for (const image of images) {
+    const form = new FormData();
+
+    form.append(
+      "file",
+      new Blob([image.buffer], { type: image.mimeType }),
+      image.originalName,
+    );
+
+    const response = await fetch(`${getBaseUrl()}/v3/assets`, {
+      method: "POST",
+      headers: {
+        "x-api-key": getApiKey(),
+      },
+      body: form,
+    });
+
+    const payload = await parsePayload(response);
+
+    if (!response.ok) {
+      throw new Error(
+        buildProviderErrorMessage(response.status, payload),
+      );
+    }
+
+    const body = payload as HeyGenAssetUploadResponse;
+    const assetUrl = body.data?.url?.trim();
+
+    if (!assetUrl) {
+      throw new Error(
+        `HeyGen uploaded ${image.originalName}, but no asset URL was returned.`,
+      );
+    }
+
+    uploadedAssets.push({
+      assetId: body.data?.asset_id?.trim() || null,
+      url: assetUrl,
+      mimeType: body.data?.mime_type ?? image.mimeType,
+      sizeBytes: body.data?.size_bytes ?? image.sizeBytes,
+      originalName: image.originalName,
+    });
+  }
+
+  return uploadedAssets;
+}
+
+function createJsonHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "x-api-key": getApiKey(),
+  };
+}
+
+function getApiKey(): string {
   const apiKey = env.VIDEO_PROVIDER_API_KEY?.trim();
 
   if (!apiKey) {
@@ -189,10 +286,7 @@ function createHeaders(): Record<string, string> {
     );
   }
 
-  return {
-    "Content-Type": "application/json",
-    "x-api-key": apiKey,
-  };
+  return apiKey;
 }
 
 function getBaseUrl(): string {
@@ -206,17 +300,7 @@ async function requestJson<T>(
   init: JsonRequestInit,
 ): Promise<T> {
   const response = await fetch(`${getBaseUrl()}${path}`, init);
-  const text = await response.text();
-
-  let payload: unknown = null;
-
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = null;
-    }
-  }
+  const payload = await parsePayload(response);
 
   if (!response.ok) {
     throw new Error(
@@ -225,6 +309,20 @@ async function requestJson<T>(
   }
 
   return (payload ?? {}) as T;
+}
+
+async function parsePayload(response: Response): Promise<unknown> {
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 function buildProviderErrorMessage(
