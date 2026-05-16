@@ -29,6 +29,12 @@ export type VideoProviderPollResult = {
 
 export interface VideoProvider {
   readonly name: string;
-  createJob(input: VideoProviderCreateInput): Promise<VideoProviderCreateResult>;
-  pollJob(input: VideoProviderPollInput): Promise<VideoProviderPollResult>;
+
+  createJob(
+    input: VideoProviderCreateInput,
+  ): Promise<VideoProviderCreateResult>;
+
+  pollJob(
+    input: VideoProviderPollInput,
+  ): Promise<VideoProviderPollResult>;
 }
