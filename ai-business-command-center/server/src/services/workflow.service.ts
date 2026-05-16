@@ -5,6 +5,7 @@ import {
   WORKFLOW_TEMPLATES,
 } from "../lib/workflowTemplates.js";
 import { runGenerationUnit } from "./generationUnit.service.js";
+import { enrichDailyTrendResearchContext } from "./research.service.js";
 
 export function listWorkflowTemplates() {
   return WORKFLOW_TEMPLATES;
@@ -137,6 +138,11 @@ export async function createWorkflowRun(input: {
     brandVoiceProfileId: input.brandVoiceProfileId,
   });
 
+  const effectiveContext =
+    template.id === "daily_trend_research"
+      ? await enrichDailyTrendResearchContext(input.context)
+      : input.context;
+
   const run = await prisma.workflowRun.create({
     data: {
       userId: input.userId,
@@ -145,7 +151,7 @@ export async function createWorkflowRun(input: {
       templateId: template.id,
       title: input.title?.trim() || template.name,
       status: "running",
-      input: input.context as object,
+      input: effectiveContext as object,
     },
   });
 
@@ -161,7 +167,7 @@ export async function createWorkflowRun(input: {
         stepLabel: step.label,
         skill: step.skill,
         status: "running",
-        input: input.context as object,
+        input: effectiveContext as object,
         startedAt: new Date(),
       },
     });
@@ -171,7 +177,7 @@ export async function createWorkflowRun(input: {
         userId: input.userId,
         skill: step.skill,
         projectId: input.projectId ?? null,
-        context: input.context,
+        context: effectiveContext,
         taskType: `workflow:${template.id}:${step.key}`,
       });
 
@@ -182,7 +188,7 @@ export async function createWorkflowRun(input: {
           type: step.skill,
           title: step.outputTitle,
           content: result.content,
-          inputSnapshot: input.context as object,
+          inputSnapshot: effectiveContext as object,
         },
       });
 
