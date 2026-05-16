@@ -15,6 +15,38 @@ export type WorkflowTemplate = {
 
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
+    id: "daily_trend_research",
+    name: "Daily Trend & Opportunity Research",
+    description:
+      "Research daily Google trend/search signals and Reddit discussion signals, then turn them into revenue-relevant content and campaign recommendations.",
+    requiredInputs: [
+      "productName",
+      "targetAudience",
+      "researchKeywords",
+    ],
+    steps: [
+      {
+        key: "trend_digest",
+        label: "Trend signal digest",
+        skill: "daily_trend_research_digest",
+        outputTitle: "Daily Trend Signal Digest",
+      },
+      {
+        key: "monetization_angles",
+        label: "Revenue and offer opportunities",
+        skill: "daily_trend_research_monetization_angles",
+        outputTitle: "Daily Trend Monetization Angles",
+      },
+      {
+        key: "daily_action_plan",
+        label: "Today’s content and campaign actions",
+        skill: "daily_trend_research_action_plan",
+        outputTitle: "Daily Trend Action Plan",
+      },
+    ],
+  },
+
+  {
     id: "campaign_launch",
     name: "Campaign Launch Workflow",
     description:
@@ -53,6 +85,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       },
     ],
   },
+
   {
     id: "weekly_content",
     name: "Weekly Content Workflow",
@@ -92,6 +125,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       },
     ],
   },
+
   {
     id: "lead_magnet_funnel",
     name: "Lead Magnet Funnel Workflow",
@@ -129,6 +163,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 
 export function findWorkflowTemplate(templateId: string) {
   return (
-    WORKFLOW_TEMPLATES.find((template) => template.id === templateId) ?? null
+    WORKFLOW_TEMPLATES.find((template) => template.id === templateId) ??
+    null
   );
 }
