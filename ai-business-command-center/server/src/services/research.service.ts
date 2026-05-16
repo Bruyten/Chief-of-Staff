@@ -1,8 +1,7 @@
 import { errors } from "../lib/errors.js";
 import {
-  collectGoogleSerpSignals,
-  collectGoogleTrendSignals,
-  collectRedditSignals,
+  collectRedditDiscussionSignals,
+  collectWebTrendSignals,
 } from "./researchProviders.service.js";
 
 const ALLOWED_TIME_RANGES = new Set([
@@ -24,7 +23,7 @@ function parseDelimitedList(value: unknown, limit: number) {
     .slice(0, limit);
 }
 
-function sanitizeTrendKeyword(keyword: string) {
+function sanitizeKeyword(keyword: string) {
   return keyword
     .replace(/[<>|\\"]+/g, " ")
     .replace(/[+\-=~!:*()[\]{}]+/g, " ")
@@ -33,24 +32,12 @@ function sanitizeTrendKeyword(keyword: string) {
     .slice(0, 100);
 }
 
-function toLocationCode(value: unknown) {
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return 2840;
-  }
-
-  return parsed;
-}
-
-function toLanguageCode(value: unknown) {
-  const clean = asString(value);
-
-  if (!/^[a-z]{2}$/i.test(clean)) {
-    return "en";
-  }
-
-  return clean.toLowerCase();
+function sanitizeSubreddit(value: string) {
+  return value
+    .replace(/^r\//i, "")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .trim()
+    .slice(0, 60);
 }
 
 function toTimeRange(value: unknown) {
@@ -89,7 +76,7 @@ export async function enrichDailyTrendResearchContext(
   const keywords = (
     rawKeywords.length > 0 ? rawKeywords : [fallbackKeyword]
   )
-    .map(sanitizeTrendKeyword)
+    .map(sanitizeKeyword)
     .filter(Boolean)
     .slice(0, 5);
 
@@ -102,63 +89,46 @@ export async function enrichDailyTrendResearchContext(
   const subreddits = parseDelimitedList(
     context.redditSubreddits,
     5,
-  ).map((value) =>
-    value.replace(/^r\//i, "").trim().slice(0, 60),
-  );
-
-  const locationCode = toLocationCode(
-    context.researchLocationCode,
-  );
-
-  const languageCode = toLanguageCode(
-    context.researchLanguageCode,
-  );
+  )
+    .map(sanitizeSubreddit)
+    .filter(Boolean)
+    .slice(0, 3);
 
   const timeRange = toTimeRange(context.researchTimeRange);
 
-  const [googleTrends, googleSerp, reddit] = await Promise.all([
-    collectGoogleTrendSignals({
+  const [webTrendSignals, redditDiscussionSignals] = await Promise.all([
+    collectWebTrendSignals({
       keywords,
-      locationCode,
-      languageCode,
       timeRange,
     }),
-    collectGoogleSerpSignals({
-      keywords,
-      locationCode,
-      languageCode,
-    }),
-    collectRedditSignals({
+    collectRedditDiscussionSignals({
       keywords,
       subreddits,
+      timeRange,
     }),
   ]);
 
   const researchBundle = {
     generatedAt: new Date().toISOString(),
+    provider: "tavily",
+    costControlNotes: {
+      searchDepth: "basic",
+      keywordLimit: 5,
+      redditSearchLimit: 6,
+      reason:
+        "This MVP intentionally limits search volume to protect margins while still producing useful daily research briefs.",
+    },
     keywords,
     subreddits,
-    providerNotes: {
-      google:
-        "Google Trends and Google SERP signals collected through the configured research provider.",
-      reddit:
-        reddit.status === "disabled"
-          ? "Reddit research is currently disabled."
-          : reddit.status === "failed"
-            ? "Reddit research was attempted but failed."
-            : "Reddit OAuth research completed.",
-    },
-    googleTrends,
-    googleSerp,
-    reddit,
+    timeRange,
+    webTrendSignals,
+    redditDiscussionSignals,
   };
 
   return {
     ...context,
     researchKeywords: keywords.join(", "),
     redditSubreddits: subreddits.join(", "),
-    researchLocationCode: String(locationCode),
-    researchLanguageCode: languageCode,
     researchTimeRange: timeRange,
     researchSourceDigest: clipJson(researchBundle, 32_000),
   };
