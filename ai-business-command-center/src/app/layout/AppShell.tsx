@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-
 import { useApp, type AppPage } from "../AppContext";
 import { useUnlimitedAccess } from "../lib/useUnlimitedAccess";
 import { cn } from "../../utils/cn";
@@ -18,14 +17,15 @@ const navItems: NavItem[] = [
   { page: "chief-chat", icon: "💬", label: "Chief of Staff Chat" },
   {
     page: "projects",
-    icon: "📁",
+    icon: "🗂️",
     label: "Campaign Workspaces",
     matchPages: ["project-detail"],
   },
-  { page: "brand-voices", icon: "🎙️", label: "Brand Voices" },
+  { page: "product-library", icon: "📦", label: "Product Library" },
+  { page: "brand-voices", icon: "🗣️", label: "Brand Voices" },
   {
     page: "workflows",
-    icon: "🧩",
+    icon: "⚙️",
     label: "Workflows",
     matchPages: ["workflow-run"],
   },
@@ -41,41 +41,46 @@ export function AppShell({
   children,
   title,
   subtitle,
+  eyebrow,
   action,
+  actions,
 }: {
   children: ReactNode;
   title: string;
   subtitle?: string;
+  eyebrow?: string;
   action?: ReactNode;
+  actions?: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#070812] text-white flex">
-      <aside className="hidden lg:block w-[290px] shrink-0 border-r border-white/10 bg-white/[0.02]">
+    <div className="flex min-h-screen bg-[#070812] text-white">
+      <aside className="hidden w-[290px] shrink-0 border-r border-white/10 bg-white/[0.02] lg:block">
         <AppSidebar onNavigate={() => setMobileOpen(false)} />
       </aside>
 
-      {mobileOpen && (
+      {mobileOpen ? (
         <>
           <button
             type="button"
-            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
             aria-label="Close navigation"
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="fixed left-0 top-0 bottom-0 w-[290px] z-50 border-r border-white/10 bg-[#0b0d18] lg:hidden">
+          <aside className="fixed bottom-0 left-0 top-0 z-50 w-[290px] border-r border-white/10 bg-[#0b0d18] lg:hidden">
             <AppSidebar onNavigate={() => setMobileOpen(false)} />
           </aside>
         </>
-      )}
+      ) : null}
 
-      <section className="min-w-0 flex-1 flex flex-col">
+      <section className="flex min-w-0 flex-1 flex-col">
         <Topbar
           title={title}
           subtitle={subtitle}
-          action={action}
+          eyebrow={eyebrow}
+          action={actions ?? action}
           onMobileMenu={() => setMobileOpen(true)}
         />
 
@@ -83,7 +88,7 @@ export function AppShell({
           id="app-main-scroll"
           className="flex-1 overflow-y-auto px-4 py-5 md:px-6 lg:px-8 lg:py-7"
         >
-          {children}
+          <div className="space-y-5">{children}</div>
         </main>
       </section>
 
@@ -97,6 +102,7 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
   const unlimitedAccess = useUnlimitedAccess(mode);
 
   const isUnlimited = unlimitedAccess.unlimited;
+
   const accessLabel =
     unlimitedAccess.role === "owner"
       ? "Owner access"
@@ -105,16 +111,20 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
         : `${user.plan} plan`;
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-4 pt-5 pb-4 border-b border-white/10">
+    <div className="flex h-full flex-col">
+      <div className="border-b border-white/10 px-4 pb-4 pt-5">
         <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 grid place-items-center font-black shadow-lg shadow-violet-500/20">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 font-black shadow-lg shadow-violet-500/20">
             CS
           </div>
 
           <div>
-            <div className="font-semibold tracking-tight">Chief of Staff</div>
-            <div className="text-xs text-white/45">Digital Marketing OS</div>
+            <div className="font-semibold tracking-tight">
+              Chief of Staff
+            </div>
+            <div className="text-xs text-white/45">
+              Digital Marketing OS
+            </div>
           </div>
         </div>
 
@@ -124,14 +134,14 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
             navigate("new-task");
             onNavigate();
           }}
-          className="w-full mt-4 px-3 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[13px] font-semibold hover:from-violet-400 hover:to-fuchsia-400 transition shadow-lg shadow-violet-500/20"
+          className="mt-4 w-full rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-3 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:from-violet-400 hover:to-fuchsia-400"
         >
           ✨ New Task
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        <div className="px-3 pb-2 text-[10px] uppercase tracking-[0.18em] text-white/35 font-semibold">
+      <div className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
           Workspace
         </div>
 
@@ -148,10 +158,10 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
                 onNavigate();
               }}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-[13px] transition",
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[13px] transition",
                 active
                   ? "bg-white/10 text-white"
-                  : "text-white/60 hover:text-white hover:bg-white/5",
+                  : "text-white/60 hover:bg-white/5 hover:text-white",
               )}
             >
               <span className="w-5 text-center">{item.icon}</span>
@@ -161,23 +171,25 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
         })}
       </div>
 
-      <div className="p-3 border-t border-white/10 space-y-3">
+      <div className="space-y-3 border-t border-white/10 p-3">
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-white/40 font-semibold">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
             Usage
           </div>
 
           <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-xl bg-black/20 p-2">
               <div className="text-white/45">Text</div>
-              <div className="text-white font-semibold mt-1">
-                {isUnlimited ? "Unlimited" : `${user.credits}/${user.creditsMax}`}
+              <div className="mt-1 font-semibold text-white">
+                {isUnlimited
+                  ? "Unlimited"
+                  : `${user.credits}/${user.creditsMax}`}
               </div>
             </div>
 
             <div className="rounded-xl bg-black/20 p-2">
               <div className="text-white/45">Video</div>
-              <div className="text-white font-semibold mt-1">
+              <div className="mt-1 font-semibold text-white">
                 {isUnlimited
                   ? "Unlimited"
                   : `${user.videoCredits}/${user.videoCreditsMax}`}
@@ -185,19 +197,23 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
             </div>
           </div>
 
-          <div className="mt-2 text-[11px] text-white/35 capitalize">
-            {isUnlimited ? `${accessLabel} · Unlimited` : `${accessLabel} · resets monthly`}
+          <div className="mt-2 text-[11px] capitalize text-white/35">
+            {isUnlimited
+              ? `${accessLabel} · Unlimited`
+              : `${accessLabel} · resets monthly`}
           </div>
         </div>
 
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="h-10 w-10 shrink-0 rounded-full bg-white/10 grid place-items-center text-sm font-semibold">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-semibold">
             {user.name.slice(0, 2).toUpperCase()}
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{user.name}</div>
-            <div className="truncate text-[11px] text-white/45">{user.email}</div>
+            <div className="truncate text-[11px] text-white/45">
+              {user.email}
+            </div>
           </div>
 
           <button
@@ -206,7 +222,7 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
               void logout();
               onNavigate();
             }}
-            className="text-white/35 hover:text-rose-300 text-sm transition"
+            className="text-sm text-white/35 transition hover:text-rose-300"
             title="Sign out"
           >
             ↩
@@ -220,11 +236,13 @@ function AppSidebar({ onNavigate }: { onNavigate: () => void }) {
 function Topbar({
   title,
   subtitle,
+  eyebrow,
   action,
   onMobileMenu,
 }: {
   title: string;
   subtitle?: string;
+  eyebrow?: string;
   action?: ReactNode;
   onMobileMenu: () => void;
 }) {
@@ -233,18 +251,24 @@ function Topbar({
       <button
         type="button"
         onClick={onMobileMenu}
-        className="lg:hidden h-10 w-10 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] transition"
+        className="h-10 w-10 rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08] lg:hidden"
       >
         ☰
       </button>
 
       <div className="min-w-0 flex-1">
-        <div className="text-lg md:text-xl font-semibold tracking-tight">
+        {eyebrow ? (
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/70">
+            {eyebrow}
+          </div>
+        ) : null}
+
+        <div className="text-lg font-semibold tracking-tight md:text-xl">
           {title}
         </div>
 
         {subtitle ? (
-          <div className="text-sm text-white/45 mt-0.5">{subtitle}</div>
+          <div className="mt-0.5 text-sm text-white/45">{subtitle}</div>
         ) : null}
       </div>
 
