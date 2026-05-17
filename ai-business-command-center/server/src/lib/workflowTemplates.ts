@@ -18,7 +18,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: "daily_trend_research",
     name: "Daily Trend & Opportunity Research",
     description:
-      "Research daily Google trend/search signals and Reddit discussion signals, then turn them into revenue-relevant content and campaign recommendations.",
+      "Research current search and Reddit-style discussion signals, then turn them into revenue-relevant content and campaign recommendations.",
     requiredInputs: [
       "productName",
       "targetAudience",
@@ -42,6 +42,43 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         label: "Today’s content and campaign actions",
         skill: "daily_trend_research_action_plan",
         outputTitle: "Daily Trend Action Plan",
+      },
+    ],
+  },
+
+  {
+    id: "daily_product_opportunity_engine",
+    name: "Daily Product Opportunity Engine",
+    description:
+      "Research today’s demand signals, match them to the Product Library, identify missing products worth creating, and generate promotion plus video concepts.",
+    requiredInputs: [
+      "targetAudience",
+      "researchKeywords",
+    ],
+    steps: [
+      {
+        key: "existing_product_matches",
+        label: "Best existing products to promote",
+        skill: "daily_product_existing_match",
+        outputTitle: "Best Products to Promote Today",
+      },
+      {
+        key: "missing_product_gaps",
+        label: "Missing products worth creating",
+        skill: "daily_product_gap_detector",
+        outputTitle: "Missing Product Opportunities",
+      },
+      {
+        key: "daily_promotion_plan",
+        label: "Daily promotion plan",
+        skill: "daily_product_promotion_plan",
+        outputTitle: "Daily Product Promotion Plan",
+      },
+      {
+        key: "video_concepts",
+        label: "Video concepts and prompts",
+        skill: "daily_product_video_concepts",
+        outputTitle: "Daily Product Video Concepts",
       },
     ],
   },
