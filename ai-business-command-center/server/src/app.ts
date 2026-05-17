@@ -2,14 +2,11 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-
 import { env } from "./env.js";
 import { logger } from "./lib/logger.js";
-
 import { apiLimiter } from "./middleware/rateLimit.js";
 import { requireCsrf } from "./middleware/requireCsrf.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-
 import authRoutes from "./routes/auth.routes.js";
 import projectsRoutes from "./routes/projects.routes.js";
 import productsRoutes from "./routes/products.routes.js";
@@ -24,6 +21,7 @@ import workflowsRoutes from "./routes/workflows.routes.js";
 import automationsRoutes from "./routes/automations.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import videoStudioRoutes from "./routes/videoStudio.routes.js";
+import productLibraryRoutes from "./routes/productLibrary.routes.js";
 
 export function createApp() {
   const app = express();
@@ -60,10 +58,6 @@ export function createApp() {
 
   app.use(cookieParser());
 
-  /**
-   * Stripe webhooks require raw request bodies for signature verification.
-   * This must stay before express.json().
-   */
   app.use(
     "/api/webhooks",
     express.raw({ type: "application/json" }),
@@ -87,6 +81,7 @@ export function createApp() {
   app.use("/api/auth", authRoutes);
   app.use("/api/projects", projectsRoutes);
   app.use("/api/projects/:projectId/products", productsRoutes);
+  app.use("/api/product-library", productLibraryRoutes);
   app.use("/api/generate", generateRoutes);
   app.use("/api/outputs", outputsRoutes);
   app.use("/api/account", accountRoutes);
