@@ -37,6 +37,7 @@ export type AppPage =
   | "new-task"
   | "projects"
   | "project-detail"
+  | "product-library"
   | "saved-outputs"
   | "templates"
   | "settings"
@@ -83,50 +84,56 @@ type AppContextShape = {
   page: AppPage;
   navigate: (page: AppPage, params?: Record<string, unknown>) => void;
   params: Record<string, unknown>;
-
   mode: Mode;
   setMode: (m: Mode) => void;
-
   isAuthed: boolean;
   user: MockUser;
   loginWith: (email: string, password: string) => Promise<void>;
-  signupWith: (email: string, password: string, name: string) => Promise<void>;
+  signupWith: (
+    email: string,
+    password: string,
+    name: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   upgradePlanLocal: (
     plan: "starter" | "pro" | "agency",
     textCredits: number,
-    videoCredits?: number
+    videoCredits?: number,
   ) => void;
   setCreditsLocal: (textCredits: number, videoCredits?: number) => void;
-
   projects: MockProject[];
   products: MockProduct[];
   outputs: MockOutput[];
   loadingData: boolean;
   refetchAll: () => Promise<void>;
-
-  saveOutput: (output: Omit<MockOutput, "id" | "userId" | "createdAt">) => Promise<MockOutput>;
-  updateOutput: (id: string, patch: { title?: string; content?: string }) => Promise<void>;
+  saveOutput: (
+    output: Omit<MockOutput, "id" | "userId" | "createdAt">,
+  ) => Promise<MockOutput>;
+  updateOutput: (
+    id: string,
+    patch: { title?: string; content?: string },
+  ) => Promise<void>;
   deleteOutput: (id: string) => Promise<void>;
   createProject: (data: CreateProjectInput) => Promise<MockProject>;
-  updateProject: (id: string, data: UpdateProjectInput) => Promise<MockProject>;
+  updateProject: (
+    id: string,
+    data: UpdateProjectInput,
+  ) => Promise<MockProject>;
   deleteProject: (id: string) => Promise<void>;
-
   runGeneration: (
     skill: OutputType,
     projectId: string,
-    context: Record<string, unknown>
+    context: Record<string, unknown>,
   ) => Promise<string>;
-
   draft: Draft;
   setDraft: (d: Draft) => void;
-
   toasts: Toast[];
   toast: (text: string, tone?: Toast["tone"]) => void;
 };
 
 const Ctx = createContext<AppContextShape | null>(null);
+
 const MODE_KEY = "cos_mode";
 
 function loadMode(): Mode {
@@ -147,7 +154,8 @@ function toMockProject(project: Project): MockProject {
     emoji: project.emoji ?? "✨",
     productCount: project.productCount ?? project.products?.length ?? 0,
     outputCount: project.outputCount ?? project.outputs?.length ?? 0,
-    workflowRunCount: project.workflowRunCount ?? project.workflowRuns?.length ?? 0,
+    workflowRunCount:
+      project.workflowRunCount ?? project.workflowRuns?.length ?? 0,
     chatCount: project.chatCount ?? project.chatConversations?.length ?? 0,
     automationCount: project.automationCount ?? 0,
     campaignGoal: project.campaignGoal ?? undefined,
@@ -163,7 +171,7 @@ function toMockProject(project: Project): MockProject {
         }
       : null,
     createdAt: project.createdAt,
-    updatedAt: project.updatedAt,
+    updatedAt: project.updatedAt ?? project.createdAt,
   };
 }
 
@@ -212,27 +220,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const toast = useCallback((text: string, tone: Toast["tone"] = "success") => {
-    const id = `t_${Date.now()}_${Math.random()}`;
-    setToasts((prev) => [...prev, { id, text, tone }]);
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((entry) => entry.id !== id));
-    }, 2800);
-  }, []);
+  const toast = useCallback(
+    (text: string, tone: Toast["tone"] = "success") => {
+      const id = `t_${Date.now()}_${Math.random()}`;
 
-  const navigate = useCallback((nextPage: AppPage, nextParams?: Record<string, unknown>) => {
-    setPage(nextPage);
-    setParams(nextParams ?? {});
-    window.setTimeout(() => {
-      document.getElementById("app-main-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
-    }, 0);
-  }, []);
+      setToasts((prev) => [...prev, { id, text, tone }]);
+
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((entry) => entry.id !== id));
+      }, 2800);
+    },
+    [],
+  );
+
+  const navigate = useCallback(
+    (nextPage: AppPage, nextParams?: Record<string, unknown>) => {
+      setPage(nextPage);
+      setParams(nextParams ?? {});
+
+      window.setTimeout(() => {
+        document.getElementById("app-main-scroll")?.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
+      }, 0);
+    },
+    [],
+  );
 
   const setMode = useCallback((nextMode: Mode) => {
     try {
       localStorage.setItem(MODE_KEY, nextMode);
     } catch {
-      // ignore
+      // Ignore storage failures.
     }
 
     setModeState(nextMode);
@@ -247,9 +267,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refetchAll = useCallback(async () => {
-    if (mode !== "live" || !isAuthed) return;
+    if (mode !== "live" || !isAuthed) {
+      return;
+    }
 
     setLoadingData(true);
+
     try {
       const [projectResponse, outputResponse] = await Promise.all([
         projectsApi.list(),
@@ -273,24 +296,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void refetchAll();
     }
 
-    if (!isAuthed) didInitialFetch.current = false;
+    if (!isAuthed) {
+      didInitialFetch.current = false;
+    }
   }, [isAuthed, mode, refetchAll]);
 
   useEffect(() => {
-    if (mode !== "live") return;
+    if (mode !== "live") {
+      return;
+    }
 
     let cancelled = false;
 
     void (async () => {
       try {
         const { user: liveUser } = await auth.me();
+
         if (!cancelled) {
           setUser(toMockUser(liveUser));
           setIsAuthed(true);
           setPage("dashboard");
         }
       } catch {
-        // not signed in
+        // Not signed in.
       }
     })();
 
@@ -308,11 +336,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const { user: liveUser } = await auth.login({ email, password });
+
       setUser(toMockUser(liveUser));
       setIsAuthed(true);
       setPage("dashboard");
     },
-    [mode]
+    [mode],
   );
 
   const signupWith = useCallback(
@@ -323,12 +352,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { user: liveUser } = await auth.signup({ email, password, name });
+      const { user: liveUser } = await auth.signup({
+        email,
+        password,
+        name,
+      });
+
       setUser(toMockUser(liveUser));
       setIsAuthed(true);
       setPage("dashboard");
     },
-    [mode]
+    [mode],
   );
 
   const logout = useCallback(async () => {
@@ -336,7 +370,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         await auth.logout();
       } catch {
-        // ignore
+        // Ignore logout request failures and clear local UI state anyway.
       }
     }
 
@@ -345,13 +379,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [mode]);
 
   const refreshUser = useCallback(async () => {
-    if (mode !== "live") return;
+    if (mode !== "live") {
+      return;
+    }
 
     try {
       const { user: liveUser } = await auth.me();
       setUser(toMockUser(liveUser));
     } catch {
-      // ignore
+      // Ignore refresh failures.
     }
   }, [mode]);
 
@@ -359,7 +395,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (
       plan: "starter" | "pro" | "agency",
       textCredits: number,
-      videoCredits = plan === "agency" ? 10 : plan === "pro" ? 3 : 0
+      videoCredits =
+        plan === "agency" ? 10 : plan === "pro" ? 3 : 0,
     ) => {
       setUser((current) => ({
         ...current,
@@ -370,19 +407,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         videoCreditsMax: videoCredits,
       }));
     },
-    []
+    [],
   );
 
-  const setCreditsLocal = useCallback((textCredits: number, videoCredits?: number) => {
-    setUser((current) => ({
-      ...current,
-      credits: textCredits,
-      ...(videoCredits !== undefined ? { videoCredits } : {}),
-    }));
-  }, []);
+  const setCreditsLocal = useCallback(
+    (textCredits: number, videoCredits?: number) => {
+      setUser((current) => ({
+        ...current,
+        credits: textCredits,
+        ...(videoCredits !== undefined ? { videoCredits } : {}),
+      }));
+    },
+    [],
+  );
 
   const saveOutput = useCallback(
-    async (data: Omit<MockOutput, "id" | "userId" | "createdAt">) => {
+    async (
+      data: Omit<MockOutput, "id" | "userId" | "createdAt">,
+    ): Promise<MockOutput> => {
       if (mode === "mock") {
         const output: MockOutput = {
           ...data,
@@ -407,30 +449,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const mapped = toMockOutput(output);
       mapped.projectName = data.projectName;
       mapped.projectEmoji = data.projectEmoji;
+
       setOutputs((prev) => [mapped, ...prev]);
+
       return mapped;
     },
-    [mode, user.id]
+    [mode, user.id],
   );
 
   const deleteOutput = useCallback(
     async (id: string) => {
-      if (mode === "live") await outputsApi.delete(id);
+      if (mode === "live") {
+        await outputsApi.delete(id);
+      }
+
       setOutputs((prev) => prev.filter((output) => output.id !== id));
     },
-    [mode]
+    [mode],
   );
 
   const updateOutput = useCallback(
-    async (id: string, patch: { title?: string; content?: string }) => {
-      if (mode === "live") await outputsApi.update(id, patch);
-      setOutputs((prev) => prev.map((output) => (output.id === id ? { ...output, ...patch } : output)));
+    async (
+      id: string,
+      patch: { title?: string; content?: string },
+    ) => {
+      if (mode === "live") {
+        await outputsApi.update(id, patch);
+      }
+
+      setOutputs((prev) =>
+        prev.map((output) =>
+          output.id === id ? { ...output, ...patch } : output,
+        ),
+      );
     },
-    [mode]
+    [mode],
   );
 
   const createProject = useCallback(
-    async (data: CreateProjectInput) => {
+    async (data: CreateProjectInput): Promise<MockProject> => {
       if (mode === "mock") {
         const project: MockProject = {
           id: `p_${Date.now()}`,
@@ -459,20 +516,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const { project } = await projectsApi.create(data);
       const mapped = toMockProject(project);
+
       setProjects((prev) => [mapped, ...prev]);
+
       return mapped;
     },
-    [mode]
+    [mode],
   );
 
   const updateProject = useCallback(
-    async (id: string, data: UpdateProjectInput) => {
+    async (
+      id: string,
+      data: UpdateProjectInput,
+    ): Promise<MockProject> => {
       if (mode === "mock") {
         let updated: MockProject | null = null;
 
         setProjects((prev) =>
           prev.map((project) => {
-            if (project.id !== id) return project;
+            if (project.id !== id) {
+              return project;
+            }
 
             updated = {
               ...project,
@@ -481,32 +545,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
             };
 
             return updated;
-          })
+          }),
         );
 
-        if (!updated) throw new Error("Project not found");
+        if (!updated) {
+          throw new Error("Project not found");
+        }
+
         return updated;
       }
 
       const { project } = await projectsApi.update(id, data);
       const mapped = toMockProject(project);
-      setProjects((prev) => prev.map((entry) => (entry.id === id ? mapped : entry)));
+
+      setProjects((prev) =>
+        prev.map((entry) => (entry.id === id ? mapped : entry)),
+      );
+
       return mapped;
     },
-    [mode]
+    [mode],
   );
 
   const deleteProject = useCallback(
     async (id: string) => {
-      if (mode === "live") await projectsApi.delete(id);
+      if (mode === "live") {
+        await projectsApi.delete(id);
+      }
+
       setProjects((prev) => prev.filter((project) => project.id !== id));
       setOutputs((prev) => prev.filter((output) => output.projectId !== id));
     },
-    [mode]
+    [mode],
   );
 
   const runGeneration = useCallback(
-    async (skill: OutputType, projectId: string, context: Record<string, unknown>) => {
+    async (
+      skill: OutputType,
+      projectId: string,
+      context: Record<string, unknown>,
+    ) => {
       if (mode === "mock") {
         throw new Error("USE_MOCK_FALLBACK");
       }
@@ -517,10 +595,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           context,
         });
 
-        setUser((current) => ({ ...current, credits: result.creditsRemaining }));
+        setUser((current) => ({
+          ...current,
+          credits: result.creditsRemaining,
+        }));
+
         return result.content;
       } catch (error) {
-        if (error instanceof ApiException && error.code === "PAYMENT_REQUIRED") {
+        if (
+          error instanceof ApiException &&
+          error.code === "PAYMENT_REQUIRED"
+        ) {
           toast(error.message || "Out of text credits this month.", "danger");
         } else {
           toast(friendlyError(error), "danger");
@@ -529,7 +614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    [mode, toast]
+    [mode, toast],
   );
 
   const value = useMemo<AppContextShape>(
@@ -593,7 +678,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       draft,
       toasts,
       toast,
-    ]
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -601,6 +686,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 export function useApp() {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useApp must be inside AppProvider");
+
+  if (!ctx) {
+    throw new Error("useApp must be inside AppProvider");
+  }
+
   return ctx;
 }
