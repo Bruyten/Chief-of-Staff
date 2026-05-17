@@ -6,6 +6,7 @@ import {
 } from "../lib/workflowTemplates.js";
 import { runGenerationUnit } from "./generationUnit.service.js";
 import { enrichDailyTrendResearchContext } from "./research.service.js";
+import { enrichProductOpportunityContext } from "./productOpportunity.service.js";
 
 export function listWorkflowTemplates() {
   return WORKFLOW_TEMPLATES;
@@ -138,10 +139,22 @@ export async function createWorkflowRun(input: {
     brandVoiceProfileId: input.brandVoiceProfileId,
   });
 
-  const effectiveContext =
-    template.id === "daily_trend_research"
-      ? await enrichDailyTrendResearchContext(input.context)
-      : input.context;
+  let effectiveContext = input.context;
+
+  if (
+    template.id === "daily_trend_research" ||
+    template.id === "daily_product_opportunity_engine"
+  ) {
+    effectiveContext =
+      await enrichDailyTrendResearchContext(effectiveContext);
+  }
+
+  if (template.id === "daily_product_opportunity_engine") {
+    effectiveContext = await enrichProductOpportunityContext(
+      input.userId,
+      effectiveContext,
+    );
+  }
 
   const run = await prisma.workflowRun.create({
     data: {
