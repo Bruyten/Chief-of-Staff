@@ -142,8 +142,9 @@ export function WorkflowsPage() {
     [form.projectId, projects],
   );
 
-  const isDailyTrendResearch =
-    selectedTemplate?.id === "daily_trend_research";
+  const isResearchDrivenWorkflow =
+    selectedTemplate?.id === "daily_trend_research" ||
+    selectedTemplate?.id === "daily_product_opportunity_engine";
 
   async function launchWorkflow() {
     if (!selectedTemplate || launching) {
@@ -151,12 +152,12 @@ export function WorkflowsPage() {
     }
 
     if (
-      isDailyTrendResearch &&
+      isResearchDrivenWorkflow &&
       !form.researchKeywords.trim() &&
       !form.productName.trim()
     ) {
       toast(
-        "Add at least one research keyword or a product name before running trend research.",
+        "Add at least one research keyword or a product name before running this research workflow.",
         "danger",
       );
       return;
@@ -306,6 +307,10 @@ export function WorkflowsPage() {
                     {template.id === "daily_trend_research" ? (
                       <Badge tone="amber">Research + Revenue</Badge>
                     ) : null}
+
+                    {template.id === "daily_product_opportunity_engine" ? (
+                      <Badge tone="emerald">Product Opportunity Engine</Badge>
+                    ) : null}
                   </div>
 
                   <p className="mt-3 text-sm text-white/65">
@@ -424,7 +429,7 @@ export function WorkflowsPage() {
                 title: event.target.value,
               }))
             }
-            placeholder="e.g. The Simple Digital Path Daily Trend Research"
+            placeholder="e.g. The Simple Digital Path Daily Product Opportunity Engine"
             autoFocus
           />
 
@@ -486,7 +491,7 @@ export function WorkflowsPage() {
                 productName: event.target.value,
               }))
             }
-            placeholder="e.g. The Simple Digital Path"
+            placeholder="Optional for Product Opportunity Engine; useful for product-specific research."
           />
 
           <Input
@@ -539,13 +544,14 @@ export function WorkflowsPage() {
             placeholder="e.g. Download the free guide"
           />
 
-          {isDailyTrendResearch ? (
+          {isResearchDrivenWorkflow ? (
             <div className="space-y-5 rounded-3xl border border-amber-400/20 bg-amber-500/10 p-4">
               <div>
-                <Badge tone="amber">Daily Research Inputs</Badge>
+                <Badge tone="amber">Research Inputs</Badge>
                 <p className="mt-3 text-sm text-amber-50/80">
-                  These settings control the trend research source queries
-                  before the AI turns findings into revenue opportunities.
+                  These settings control the research source queries before the
+                  AI turns findings into trends, product opportunities, and
+                  revenue actions.
                 </p>
               </div>
 
@@ -666,6 +672,39 @@ const MOCK_TEMPLATES: WorkflowTemplate[] = [
         label: "Today's content and campaign actions",
         skill: "daily_trend_research_action_plan",
         outputTitle: "Daily Trend Action Plan",
+      },
+    ],
+  },
+  {
+    id: "daily_product_opportunity_engine",
+    name: "Daily Product Opportunity Engine",
+    description:
+      "Research current demand signals, scan the Product Library, recommend what to promote, detect missing products worth creating, and generate video concepts.",
+    requiredInputs: ["targetAudience", "researchKeywords"],
+    steps: [
+      {
+        key: "existing_product_matches",
+        label: "Best existing products to promote",
+        skill: "daily_product_existing_match",
+        outputTitle: "Best Products to Promote Today",
+      },
+      {
+        key: "missing_product_gaps",
+        label: "Missing products worth creating",
+        skill: "daily_product_gap_detector",
+        outputTitle: "Missing Product Opportunities",
+      },
+      {
+        key: "daily_promotion_plan",
+        label: "Daily promotion plan",
+        skill: "daily_product_promotion_plan",
+        outputTitle: "Daily Product Promotion Plan",
+      },
+      {
+        key: "video_concepts",
+        label: "Video concepts and prompts",
+        skill: "daily_product_video_concepts",
+        outputTitle: "Daily Product Video Concepts",
       },
     ],
   },
