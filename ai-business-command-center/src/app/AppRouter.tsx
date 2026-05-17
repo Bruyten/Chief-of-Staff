@@ -1,10 +1,10 @@
 import { AppProvider, useApp } from "./AppContext";
-
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { NewTaskPage } from "./pages/NewTaskPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
+import { ProductLibraryPage } from "./pages/ProductLibraryPage";
 import { SavedOutputsPage } from "./pages/SavedOutputsPage";
 import { TemplatesGalleryPage } from "./pages/TemplatesGalleryPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -19,54 +19,43 @@ import { VideoStudioPage } from "./pages/VideoStudioPage";
 function Pages() {
   const { isAuthed, page } = useApp();
 
-  if (!isAuthed) return <LoginPage />;
+  if (!isAuthed) {
+    return <LoginPage />;
+  }
 
   switch (page) {
     case "dashboard":
       return <DashboardPage />;
-
     case "new-task":
       return <NewTaskPage />;
-
     case "projects":
       return <ProjectsPage />;
-
     case "project-detail":
       return <ProjectDetailPage />;
-
+    case "product-library":
+      return <ProductLibraryPage />;
     case "saved-outputs":
       return <SavedOutputsPage />;
-
     case "templates":
       return <TemplatesGalleryPage />;
-
     case "settings":
       return <SettingsPage />;
-
     case "pricing":
       return <PricingPage />;
-
     case "brand-voices":
       return <BrandVoicesPage />;
-
     case "chief-chat":
       return <ChiefOfStaffChatPage />;
-
     case "workflows":
       return <WorkflowsPage />;
-
     case "workflow-run":
       return <WorkflowRunPage />;
-
     case "automations":
       return <AutomationsPage />;
-
     case "video-studio":
       return <VideoStudioPage />;
-
     case "login":
       return <LoginPage />;
-
     default:
       return <DashboardPage />;
   }
