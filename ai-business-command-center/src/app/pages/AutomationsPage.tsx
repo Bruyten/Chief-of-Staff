@@ -11,28 +11,22 @@ import {
   Textarea,
 } from "../ui/Primitives";
 import {
-  automations,
   brandVoices,
   friendlyError,
-  type Automation,
-  type AutomationCadence,
+  workflows,
   type BrandVoiceProfile,
+  type WorkflowRun,
+  type WorkflowTemplate,
 } from "../lib/apiClient";
 
-type AutomationForm = {
-  name: string;
-  type: Automation["type"];
+type WorkflowLaunchForm = {
+  title: string;
   projectId: string;
   brandVoiceProfileId: string;
-  timezone: string;
-  dayOfWeek: string;
-  dayOfMonth: string;
-  hour: string;
-  minute: string;
   productName: string;
   targetAudience: string;
-  offer: string;
   cta: string;
+  offer: string;
   campaignGoal: string;
   researchKeywords: string;
   redditSubreddits: string;
@@ -41,20 +35,14 @@ type AutomationForm = {
   researchTimeRange: string;
 };
 
-const EMPTY_FORM: AutomationForm = {
-  name: "",
-  type: "weekly_content_plan",
+const EMPTY_FORM: WorkflowLaunchForm = {
+  title: "",
   projectId: "",
   brandVoiceProfileId: "",
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  dayOfWeek: "1",
-  dayOfMonth: "1",
-  hour: "9",
-  minute: "0",
   productName: "",
   targetAudience: "",
-  offer: "",
   cta: "",
+  offer: "",
   campaignGoal: "",
   researchKeywords: "",
   redditSubreddits: "",
@@ -63,18 +51,29 @@ const EMPTY_FORM: AutomationForm = {
   researchTimeRange: "past_7_days",
 };
 
-export function AutomationsPage() {
-  const { mode, params, projects, toast } = useApp();
+export function WorkflowsPage() {
+  const {
+    mode,
+    params,
+    projects,
+    toast,
+    navigate,
+    user,
+    setCreditsLocal,
+  } = useApp();
 
-  const [items, setItems] = useState<Automation[]>([]);
+  const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
+  const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [brandProfiles, setBrandProfiles] = useState<BrandVoiceProfile[]>(
     [],
   );
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<WorkflowTemplate | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const [form, setForm] = useState<AutomationForm>({
+  const [form, setForm] = useState<WorkflowLaunchForm>({
     ...EMPTY_FORM,
     projectId:
       typeof params.projectId === "string" ? params.projectId : "",
@@ -82,25 +81,29 @@ export function AutomationsPage() {
 
   useEffect(() => {
     if (mode === "mock") {
-      setItems([]);
+      setTemplates(MOCK_TEMPLATES);
+      setRuns([]);
       setBrandProfiles([]);
       return;
     }
 
-    void loadData();
+    void loadWorkflowData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  async function loadData() {
+  async function loadWorkflowData() {
     setLoading(true);
 
     try {
-      const [automationResponse, brandResponse] = await Promise.all([
-        automations.list(),
-        brandVoices.list(),
-      ]);
+      const [templateResponse, runResponse, brandResponse] =
+        await Promise.all([
+          workflows.templates(),
+          workflows.runs(),
+          brandVoices.list(),
+        ]);
 
-      setItems(automationResponse.automations);
+      setTemplates(templateResponse.templates);
+      setRuns(runResponse.runs);
       setBrandProfiles(brandResponse.profiles);
     } catch (error) {
       toast(friendlyError(error), "danger");
@@ -109,17 +112,24 @@ export function AutomationsPage() {
     }
   }
 
-  function openCreate() {
-    setForm({
+  function openLaunch(template: WorkflowTemplate) {
+    setSelectedTemplate(template);
+
+    setForm((current) => ({
       ...EMPTY_FORM,
       projectId:
-        typeof params.projectId === "string" ? params.projectId : "",
-    });
+        current.projectId ||
+        (typeof params.projectId === "string" ? params.projectId : ""),
+      title: template.name,
+    }));
+
     setModalOpen(true);
   }
 
-  function closeCreate() {
+  function closeLaunch() {
     setModalOpen(false);
+    setSelectedTemplate(null);
+
     setForm({
       ...EMPTY_FORM,
       projectId:
@@ -127,304 +137,210 @@ export function AutomationsPage() {
     });
   }
 
-  const cadence = automationCadence(form.type);
-  const isDailyTrendResearch = form.type === "daily_trend_research";
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === form.projectId),
+    [form.projectId, projects],
+  );
 
-  async function createAutomation() {
-    if (!form.name.trim() || saving) {
+  const isResearchDrivenWorkflow =
+    selectedTemplate?.id === "daily_trend_research" ||
+    selectedTemplate?.id === "daily_product_opportunity_engine";
+
+  async function launchWorkflow() {
+    if (!selectedTemplate || launching) {
       return;
     }
 
     if (
-      isDailyTrendResearch &&
+      isResearchDrivenWorkflow &&
       !form.researchKeywords.trim() &&
       !form.productName.trim()
     ) {
       toast(
-        "Add at least one research keyword or a product name before creating trend research automation.",
+        "Add at least one research keyword or a product name before running this research workflow.",
         "danger",
       );
       return;
     }
 
-    setSaving(true);
+    setLaunching(true);
 
     try {
-      const payload = {
-        name: form.name.trim(),
-        type: form.type,
-        projectId: form.projectId || null,
-        brandVoiceProfileId: form.brandVoiceProfileId || null,
-        timezone: form.timezone.trim() || "UTC",
-        dayOfWeek:
-          cadence === "weekly" ? Number(form.dayOfWeek) : null,
-        dayOfMonth:
-          cadence === "monthly" ? Number(form.dayOfMonth) : null,
-        hour: Number(form.hour),
-        minute: Number(form.minute),
-        config: {
-          productName: form.productName.trim(),
-          targetAudience: form.targetAudience.trim(),
-          offer: form.offer.trim(),
-          cta: form.cta.trim(),
-          campaignGoal: form.campaignGoal.trim(),
-          researchKeywords: form.researchKeywords.trim(),
-          redditSubreddits: form.redditSubreddits.trim(),
-          researchLocationCode:
-            form.researchLocationCode.trim() || "2840",
-          researchLanguageCode:
-            form.researchLanguageCode.trim() || "en",
-          researchTimeRange:
-            form.researchTimeRange.trim() || "past_7_days",
-        },
+      const context = {
+        productName: form.productName.trim(),
+        targetAudience: form.targetAudience.trim(),
+        cta: form.cta.trim(),
+        offer: form.offer.trim(),
+        campaignGoal: form.campaignGoal.trim(),
+        projectName: selectedProject?.name ?? "",
+        researchKeywords: form.researchKeywords.trim(),
+        redditSubreddits: form.redditSubreddits.trim(),
+        researchLocationCode: form.researchLocationCode.trim() || "2840",
+        researchLanguageCode: form.researchLanguageCode.trim() || "en",
+        researchTimeRange: form.researchTimeRange.trim() || "past_7_days",
       };
 
       if (mode === "mock") {
         const now = new Date().toISOString();
-        const matchedProject = projects.find(
-          (project) => project.id === payload.projectId,
-        );
 
-        const item: Automation = {
-          id: `automation_${Date.now()}`,
+        const fakeRun: WorkflowRun = {
+          id: `run_${Date.now()}`,
           userId: "u_demo",
-          projectId: payload.projectId,
-          brandVoiceProfileId: payload.brandVoiceProfileId,
-          name: payload.name,
-          type: payload.type,
-          cadence,
-          enabled: true,
-          timezone: payload.timezone,
-          dayOfWeek: payload.dayOfWeek,
-          dayOfMonth: payload.dayOfMonth,
-          hour: payload.hour,
-          minute: payload.minute,
-          config: payload.config,
-          lastRunAt: null,
-          nextRunAt: now,
-          lastStatus: null,
-          lastError: null,
-          failureCount: 0,
+          projectId: form.projectId || null,
+          brandVoiceProfileId: form.brandVoiceProfileId || null,
+          templateId: selectedTemplate.id,
+          title: form.title.trim() || selectedTemplate.name,
+          status: "completed",
+          input: context,
+          summary: null,
+          creditsSpent: selectedTemplate.steps.length,
+          startedAt: now,
+          completedAt: now,
           createdAt: now,
           updatedAt: now,
-          project: matchedProject
+          project: selectedProject
             ? {
-                id: matchedProject.id,
-                name: matchedProject.name,
-                emoji: matchedProject.emoji ?? null,
+                id: selectedProject.id,
+                name: selectedProject.name,
+                emoji: selectedProject.emoji ?? null,
               }
             : null,
           brandVoiceProfile: null,
-          runs: [],
+          steps: selectedTemplate.steps.map((step, index) => ({
+            id: `step_${Date.now()}_${index}`,
+            workflowRunId: `run_${Date.now()}`,
+            outputId: null,
+            stepKey: step.key,
+            stepLabel: step.label,
+            skill: step.skill,
+            status: "done",
+            input: context,
+            content: `Mock workflow result for ${step.label}.`,
+            tokensUsed: 0,
+            errorMsg: null,
+            startedAt: now,
+            completedAt: now,
+            createdAt: now,
+            updatedAt: now,
+            output: null,
+          })),
         };
 
-        setItems((current) => [item, ...current]);
-        toast("Mock automation created");
-        closeCreate();
+        setRuns((current) => [fakeRun, ...current]);
+        setCreditsLocal(
+          Math.max(user.credits - selectedTemplate.steps.length, 0),
+        );
+        toast("Mock workflow completed");
+        closeLaunch();
+        navigate("workflow-run", {
+          workflowRunId: fakeRun.id,
+        });
         return;
       }
 
-      const response = await automations.create(payload);
-      setItems((current) => [response.automation, ...current]);
-      toast("Automation created");
-      closeCreate();
+      const response = await workflows.createRun({
+        templateId: selectedTemplate.id,
+        title: form.title.trim() || undefined,
+        projectId: form.projectId || null,
+        brandVoiceProfileId: form.brandVoiceProfileId || null,
+        context,
+      });
+
+      setRuns((current) => [response.run, ...current]);
+      setCreditsLocal(
+        Math.max(user.credits - response.run.creditsSpent, 0),
+      );
+      toast("Workflow completed");
+      closeLaunch();
+      navigate("workflow-run", {
+        workflowRunId: response.run.id,
+      });
     } catch (error) {
       toast(friendlyError(error), "danger");
     } finally {
-      setSaving(false);
+      setLaunching(false);
     }
   }
-
-  async function toggleAutomation(item: Automation) {
-    try {
-      if (mode === "mock") {
-        setItems((current) =>
-          current.map((entry) =>
-            entry.id === item.id
-              ? {
-                  ...entry,
-                  enabled: !entry.enabled,
-                }
-              : entry,
-          ),
-        );
-
-        toast(
-          item.enabled ? "Automation disabled" : "Automation enabled",
-          "info",
-        );
-        return;
-      }
-
-      const response = item.enabled
-        ? await automations.disable(item.id)
-        : await automations.enable(item.id);
-
-      setItems((current) =>
-        current.map((entry) =>
-          entry.id === item.id ? response.automation : entry,
-        ),
-      );
-
-      toast(
-        item.enabled ? "Automation disabled" : "Automation enabled",
-        "info",
-      );
-    } catch (error) {
-      toast(friendlyError(error), "danger");
-    }
-  }
-
-  async function runNow(item: Automation) {
-    try {
-      if (mode === "mock") {
-        toast("Mock automation queued", "info");
-        return;
-      }
-
-      await automations.runNow(item.id);
-      toast("Automation queued for manual run");
-    } catch (error) {
-      toast(friendlyError(error), "danger");
-    }
-  }
-
-  async function deleteAutomation(item: Automation) {
-    const confirmed = window.confirm(`Delete "${item.name}"?`);
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      if (mode === "live") {
-        await automations.delete(item.id);
-      }
-
-      setItems((current) =>
-        current.filter((entry) => entry.id !== item.id),
-      );
-      toast("Automation deleted", "info");
-    } catch (error) {
-      toast(friendlyError(error), "danger");
-    }
-  }
-
-  const enabledCount = useMemo(
-    () => items.filter((item) => item.enabled).length,
-    [items],
-  );
 
   return (
     <AppShell
-      title="Automations"
-      eyebrow="Recurring Revenue Operations"
-      actions={<Button onClick={openCreate}>+ New Automation</Button>}
+      title="Workflows"
+      eyebrow="Sequential Business Output"
+      actions={<Badge tone="violet">{user.credits} text credits available</Badge>}
     >
-      <div className="grid gap-4 md:grid-cols-3">
-        <Metric title="Automations" value={items.length} />
-        <Metric title="Enabled" value={enabledCount} />
-        <Metric
-          title="Daily Research"
-          value={
-            items.filter(
-              (item) => item.type === "daily_trend_research",
-            ).length
-          }
-        />
-      </div>
-
       <Card>
-        <h2 className="text-xl font-semibold text-white">
-          Practical MVP Scope
-        </h2>
-        <p className="mt-2 text-sm text-white/65">
-          This is intentionally not a drag-and-drop Zapier clone. It schedules
-          repeatable marketing work, including daily trend research briefs that
-          can help users spot what to promote and create next.
-        </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-white">
+              Workflow Templates
+            </h2>
+            <p className="mt-2 text-sm text-white/65">
+              Each workflow runs step-by-step, saves useful outputs, and
+              handles partial failures gracefully.
+            </p>
+          </div>
+
+          <Badge tone="emerald">Launchable MVP</Badge>
+        </div>
       </Card>
 
       {loading ? (
         <Card>
-          <div className="text-sm text-white/65">
-            Loading automations…
-          </div>
+          <div className="text-sm text-white/65">Loading workflows…</div>
         </Card>
-      ) : items.length === 0 ? (
+      ) : templates.length === 0 ? (
         <EmptyState
-          title="No automations yet"
-          body="Create a scheduled marketing automation to reduce manual recurring work."
-          action={<Button onClick={openCreate}>+ Create Automation</Button>}
+          title="No workflow templates found"
+          body="The workflow engine is ready, but no templates are currently available."
         />
       ) : (
-        <div className="grid gap-4">
-          {items.map((item) => (
-            <Card key={item.id}>
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="grid gap-4 xl:grid-cols-2">
+          {templates.map((template) => (
+            <Card key={template.id}>
+              <div className="flex h-full flex-col">
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-white">
-                      {item.name}
-                    </h2>
+                    <h3 className="text-lg font-semibold text-white">
+                      {template.name}
+                    </h3>
 
-                    <Badge tone={item.enabled ? "emerald" : "slate"}>
-                      {item.enabled ? "enabled" : "disabled"}
-                    </Badge>
+                    {template.id === "daily_trend_research" ? (
+                      <Badge tone="amber">Research + Revenue</Badge>
+                    ) : null}
 
-                    <Badge tone="violet">{item.cadence}</Badge>
-
-                    {item.type === "daily_trend_research" ? (
-                      <Badge tone="amber">Trend Research</Badge>
+                    {template.id === "daily_product_opportunity_engine" ? (
+                      <Badge tone="emerald">Product Opportunity Engine</Badge>
                     ) : null}
                   </div>
 
                   <p className="mt-3 text-sm text-white/65">
-                    {automationDescription(item.type)}
+                    {template.description}
                   </p>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    <Info
-                      label="Next Run"
-                      value={formatDate(item.nextRunAt)}
-                    />
-                    <Info
-                      label="Last Run"
-                      value={formatDate(item.lastRunAt)}
-                    />
-                    <Info
-                      label="Last Status"
-                      value={item.lastStatus ?? "—"}
-                    />
+                  <div className="mt-4">
+                    <Badge tone="slate">
+                      {template.steps.length} steps
+                    </Badge>
                   </div>
 
-                  {item.lastError ? (
-                    <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-100">
-                      {item.lastError}
-                    </div>
-                  ) : null}
+                  <div className="mt-4 space-y-2">
+                    {template.steps.map((step, index) => (
+                      <div
+                        key={step.key}
+                        className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/70"
+                      >
+                        <span className="mr-2 text-white/40">
+                          {index + 1}.
+                        </span>
+                        {step.label}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => void toggleAutomation(item)}
-                  >
-                    {item.enabled ? "Disable" : "Enable"}
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={() => void runNow(item)}
-                  >
-                    Run Now
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={() => void deleteAutomation(item)}
-                  >
-                    Delete
+                <div className="mt-5">
+                  <Button onClick={() => openLaunch(template)}>
+                    Launch Workflow
                   </Button>
                 </div>
               </div>
@@ -433,67 +349,89 @@ export function AutomationsPage() {
         </div>
       )}
 
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-white">
+              Recent Workflow Runs
+            </h2>
+            <p className="mt-2 text-sm text-white/65">
+              Review completed and partially completed workflow results.
+            </p>
+          </div>
+
+          <Badge tone="slate">{runs.length}</Badge>
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+          {runs.length === 0 ? (
+            <div className="p-5 text-sm text-white/55">
+              No workflow runs yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-white/10">
+              {runs.map((run) => (
+                <button
+                  key={run.id}
+                  type="button"
+                  onClick={() =>
+                    navigate("workflow-run", {
+                      workflowRunId: run.id,
+                    })
+                  }
+                  className="flex w-full flex-col gap-2 p-4 text-left transition hover:bg-white/[0.03] md:flex-row md:items-center md:justify-between"
+                >
+                  <div>
+                    <div className="font-medium text-white">{run.title}</div>
+                    <div className="mt-1 text-sm text-white/55">
+                      {run.project?.name ?? "No project"} · {run.templateId} ·{" "}
+                      {run.creditsSpent} credits spent
+                    </div>
+                  </div>
+
+                  <Badge tone="violet">{run.status}</Badge>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
       <Modal
         open={modalOpen}
-        onClose={closeCreate}
-        title="Create Automation"
+        onClose={closeLaunch}
+        title={
+          selectedTemplate
+            ? `Run ${selectedTemplate.name}`
+            : "Run Workflow"
+        }
         footer={
           <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={closeCreate}>
+            <Button variant="secondary" onClick={closeLaunch}>
               Cancel
             </Button>
             <Button
-              onClick={() => void createAutomation()}
-              disabled={saving}
+              onClick={() => void launchWorkflow()}
+              disabled={launching}
             >
-              {saving ? "Creating…" : "Create Automation"}
+              {launching ? "Running…" : "Run Workflow"}
             </Button>
           </div>
         }
       >
         <div className="space-y-5">
           <Input
-            label="Automation Name"
-            value={form.name}
+            label="Workflow Run Title"
+            value={form.title}
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
-                name: event.target.value,
+                title: event.target.value,
               }))
             }
-            placeholder="e.g. Daily Trend Research - The Simple Digital Path"
+            placeholder="e.g. The Simple Digital Path Daily Product Opportunity Engine"
             autoFocus
           />
-
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-white/75">
-              Automation Type
-            </div>
-
-            <select
-              value={form.type}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  type: event.target.value as Automation["type"],
-                }))
-              }
-              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
-            >
-              <option value="daily_trend_research">
-                Daily Trend Research Automation
-              </option>
-              <option value="weekly_content_plan">
-                Weekly Content Plan
-              </option>
-              <option value="monthly_campaign_ideas">
-                Monthly Campaign Ideas
-              </option>
-              <option value="weekly_task_recommendation">
-                Weekly Marketing Task Recommendation
-              </option>
-            </select>
-          </div>
 
           <div className="space-y-2">
             <div className="text-sm font-medium text-white/75">
@@ -545,85 +483,6 @@ export function AutomationsPage() {
           </div>
 
           <Input
-            label="Timezone"
-            value={form.timezone}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                timezone: event.target.value,
-              }))
-            }
-          />
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {cadence === "weekly" ? (
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-white/75">
-                  Day of Week
-                </div>
-
-                <select
-                  value={form.dayOfWeek}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      dayOfWeek: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none"
-                >
-                  <option value="1">Monday</option>
-                  <option value="2">Tuesday</option>
-                  <option value="3">Wednesday</option>
-                  <option value="4">Thursday</option>
-                  <option value="5">Friday</option>
-                  <option value="6">Saturday</option>
-                  <option value="7">Sunday</option>
-                </select>
-              </div>
-            ) : cadence === "monthly" ? (
-              <Input
-                label="Day of Month"
-                value={form.dayOfMonth}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    dayOfMonth: event.target.value,
-                  }))
-                }
-              />
-            ) : (
-              <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-50/80">
-                Daily automations run every day at the selected time.
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Hour"
-                value={form.hour}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    hour: event.target.value,
-                  }))
-                }
-              />
-
-              <Input
-                label="Minute"
-                value={form.minute}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    minute: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <Input
             label="Product / Item"
             value={form.productName}
             onChange={(event) =>
@@ -632,7 +491,7 @@ export function AutomationsPage() {
                 productName: event.target.value,
               }))
             }
-            placeholder="e.g. The Simple Digital Path"
+            placeholder="Optional for Product Opportunity Engine; useful for product-specific research."
           />
 
           <Input
@@ -644,12 +503,12 @@ export function AutomationsPage() {
                 targetAudience: event.target.value,
               }))
             }
-            placeholder="Who is this automation focused on?"
+            placeholder="Who is this for?"
           />
 
           <Textarea
             label="Offer Details"
-            rows={2}
+            rows={3}
             value={form.offer}
             onChange={(event) =>
               setForm((current) => ({
@@ -657,12 +516,12 @@ export function AutomationsPage() {
                 offer: event.target.value,
               }))
             }
-            placeholder="The offer, lead magnet, product, course, or affiliate angle."
+            placeholder="What product, freebie, affiliate item, or program should this connect back to?"
           />
 
           <Textarea
             label="Campaign Goal"
-            rows={2}
+            rows={3}
             value={form.campaignGoal}
             onChange={(event) =>
               setForm((current) => ({
@@ -670,7 +529,7 @@ export function AutomationsPage() {
                 campaignGoal: event.target.value,
               }))
             }
-            placeholder="What should the automation help create, decide, or push?"
+            placeholder="What should this workflow help you decide, create, or promote?"
           />
 
           <Input
@@ -685,14 +544,14 @@ export function AutomationsPage() {
             placeholder="e.g. Download the free guide"
           />
 
-          {isDailyTrendResearch ? (
+          {isResearchDrivenWorkflow ? (
             <div className="space-y-5 rounded-3xl border border-amber-400/20 bg-amber-500/10 p-4">
               <div>
-                <Badge tone="amber">Trend Research Configuration</Badge>
+                <Badge tone="amber">Research Inputs</Badge>
                 <p className="mt-3 text-sm text-amber-50/80">
-                  This automation collects trend/search signals on a schedule,
-                  then turns them into a saved opportunity brief and action
-                  plan.
+                  These settings control the research source queries before the
+                  AI turns findings into trends, product opportunities, and
+                  revenue actions.
                 </p>
               </div>
 
@@ -784,69 +643,180 @@ digitalproducts`}
   );
 }
 
-function automationCadence(
-  type: Automation["type"],
-): AutomationCadence {
-  if (type === "daily_trend_research") {
-    return "daily";
-  }
-
-  if (type === "monthly_campaign_ideas") {
-    return "monthly";
-  }
-
-  return "weekly";
-}
-
-function automationDescription(type: Automation["type"]) {
-  switch (type) {
-    case "daily_trend_research":
-      return "Runs daily trend and opportunity research, then saves a market brief, monetization angles, and today's action plan.";
-    case "weekly_content_plan":
-      return "Runs a weekly content workflow for the selected campaign.";
-    case "monthly_campaign_ideas":
-      return "Generates a monthly set of campaign and promotional ideas.";
-    case "weekly_task_recommendation":
-      return "Suggests next-best marketing tasks for the week.";
-    default:
-      return "Scheduled marketing automation.";
-  }
-}
-
-function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString() : "—";
-}
-
-function Metric({
-  title,
-  value,
-}: {
-  title: string;
-  value: number;
-}) {
-  return (
-    <Card>
-      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-        {title}
-      </div>
-      <div className="mt-3 text-3xl font-semibold">{value}</div>
-    </Card>
-  );
-}
-
-function Info({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-        {label}
-      </div>
-      <div className="mt-2 text-sm text-white/70">{value}</div>
-    </div>
-  );
-}
+const MOCK_TEMPLATES: WorkflowTemplate[] = [
+  {
+    id: "daily_trend_research",
+    name: "Daily Trend & Opportunity Research",
+    description:
+      "Research daily search and community signals, then turn them into revenue-relevant content and campaign recommendations.",
+    requiredInputs: [
+      "productName",
+      "targetAudience",
+      "researchKeywords",
+    ],
+    steps: [
+      {
+        key: "trend_digest",
+        label: "Trend signal digest",
+        skill: "daily_trend_research_digest",
+        outputTitle: "Daily Trend Signal Digest",
+      },
+      {
+        key: "monetization_angles",
+        label: "Revenue and offer opportunities",
+        skill: "daily_trend_research_monetization_angles",
+        outputTitle: "Daily Trend Monetization Angles",
+      },
+      {
+        key: "daily_action_plan",
+        label: "Today's content and campaign actions",
+        skill: "daily_trend_research_action_plan",
+        outputTitle: "Daily Trend Action Plan",
+      },
+    ],
+  },
+  {
+    id: "daily_product_opportunity_engine",
+    name: "Daily Product Opportunity Engine",
+    description:
+      "Research current demand signals, scan the Product Library, recommend what to promote, detect missing products worth creating, and generate video concepts.",
+    requiredInputs: ["targetAudience", "researchKeywords"],
+    steps: [
+      {
+        key: "existing_product_matches",
+        label: "Best existing products to promote",
+        skill: "daily_product_existing_match",
+        outputTitle: "Best Products to Promote Today",
+      },
+      {
+        key: "missing_product_gaps",
+        label: "Missing products worth creating",
+        skill: "daily_product_gap_detector",
+        outputTitle: "Missing Product Opportunities",
+      },
+      {
+        key: "daily_promotion_plan",
+        label: "Daily promotion plan",
+        skill: "daily_product_promotion_plan",
+        outputTitle: "Daily Product Promotion Plan",
+      },
+      {
+        key: "video_concepts",
+        label: "Video concepts and prompts",
+        skill: "daily_product_video_concepts",
+        outputTitle: "Daily Product Video Concepts",
+      },
+    ],
+  },
+  {
+    id: "campaign_launch",
+    name: "Campaign Launch Workflow",
+    description:
+      "Create launch angle, hooks, scripts, promo copy, and a rollout plan.",
+    requiredInputs: ["productName", "targetAudience", "cta"],
+    steps: [
+      {
+        key: "campaign_angle",
+        label: "Offer / campaign angle",
+        skill: "campaign_angle",
+        outputTitle: "Campaign Angle",
+      },
+      {
+        key: "hook_ideas",
+        label: "Hook ideas",
+        skill: "hook_generator",
+        outputTitle: "Campaign Hooks",
+      },
+      {
+        key: "short_form_scripts",
+        label: "Short-form script ideas",
+        skill: "tiktok_script",
+        outputTitle: "Script Ideas",
+      },
+      {
+        key: "promo_email",
+        label: "Promotional email asset",
+        skill: "email_promo",
+        outputTitle: "Promo Email",
+      },
+      {
+        key: "launch_plan",
+        label: "Launch plan",
+        skill: "workflow_publishing_sequence",
+        outputTitle: "Launch Plan",
+      },
+    ],
+  },
+  {
+    id: "weekly_content",
+    name: "Weekly Content Workflow",
+    description:
+      "Create the weekly focus, content ideas, email touchpoint, and publishing sequence.",
+    requiredInputs: ["productName", "targetAudience", "cta"],
+    steps: [
+      {
+        key: "weekly_focus",
+        label: "Weekly marketing focus",
+        skill: "workflow_weekly_marketing_focus",
+        outputTitle: "Weekly Focus",
+      },
+      {
+        key: "social_ideas",
+        label: "Social post ideas",
+        skill: "social_post_ideas",
+        outputTitle: "Social Ideas",
+      },
+      {
+        key: "short_form_ideas",
+        label: "Short-form ideas",
+        skill: "tiktok_script",
+        outputTitle: "Short-form Ideas",
+      },
+      {
+        key: "email_touchpoint",
+        label: "Email touchpoint",
+        skill: "email_promo",
+        outputTitle: "Email Touchpoint",
+      },
+      {
+        key: "publishing_sequence",
+        label: "Publishing sequence",
+        skill: "workflow_publishing_sequence",
+        outputTitle: "Publishing Sequence",
+      },
+    ],
+  },
+  {
+    id: "lead_magnet_funnel",
+    name: "Lead Magnet Funnel Workflow",
+    description:
+      "Build a lead magnet concept, landing angle, welcome sequence, and promo hooks.",
+    requiredInputs: ["productName", "targetAudience"],
+    steps: [
+      {
+        key: "lead_magnet_idea",
+        label: "Lead magnet idea",
+        skill: "lead_magnet_idea",
+        outputTitle: "Lead Magnet Idea",
+      },
+      {
+        key: "landing_page_angle",
+        label: "Landing page angle",
+        skill: "landing_page_copy",
+        outputTitle: "Landing Page Angle",
+      },
+      {
+        key: "welcome_sequence",
+        label: "Welcome email sequence",
+        skill: "email_sequence",
+        outputTitle: "Welcome Sequence",
+      },
+      {
+        key: "promo_hooks",
+        label: "Promo hooks",
+        skill: "hook_generator",
+        outputTitle: "Promo Hooks",
+      },
+    ],
+  },
+];
