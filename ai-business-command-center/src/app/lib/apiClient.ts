@@ -246,6 +246,46 @@ export type Product = {
   updatedAt: string;
 };
 
+export type ProductLibraryItem = {
+  id: string;
+  userId: string;
+  name: string;
+  productType:
+    | "ebook"
+    | "template"
+    | "course"
+    | "program"
+    | "saas"
+    | "affiliate_product"
+    | "lead_magnet"
+    | "service"
+    | "other";
+  revenueLane:
+    | "digital_products"
+    | "courses_programs"
+    | "saas"
+    | "tiktok_affiliate"
+    | "amazon_affiliate"
+    | "lead_generation"
+    | "other"
+    | null;
+  description: string | null;
+  targetAudience: string | null;
+  painPoints: string | null;
+  benefits: string | null;
+  keywords: string | null;
+  tags: string | null;
+  offer: string | null;
+  cta: string | null;
+  priceRange: string | null;
+  productUrl: string | null;
+  coverImageUrl: string | null;
+  promotionPriority: number;
+  status: "active" | "paused" | "archived";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Output = {
   id: string;
   type: string;
@@ -367,6 +407,7 @@ export type WorkflowRun = {
 
 export type AutomationType =
   | "daily_trend_research"
+  | "daily_product_opportunity_engine"
   | "weekly_content_plan"
   | "monthly_campaign_ideas"
   | "weekly_task_recommendation";
@@ -636,6 +677,65 @@ export const projects = {
 
   delete: (id: string) =>
     api<{ ok: true }>(`/api/projects/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+export const productLibrary = {
+  list: () =>
+    api<{ items: ProductLibraryItem[] }>("/api/product-library"),
+
+  create: (data: {
+    name: string;
+    productType: ProductLibraryItem["productType"];
+    revenueLane?: Exclude<ProductLibraryItem["revenueLane"], null>;
+    description?: string;
+    targetAudience?: string;
+    painPoints?: string;
+    benefits?: string;
+    keywords?: string;
+    tags?: string;
+    offer?: string;
+    cta?: string;
+    priceRange?: string;
+    productUrl?: string;
+    coverImageUrl?: string;
+    promotionPriority: number;
+    status: ProductLibraryItem["status"];
+  }) =>
+    api<{ item: ProductLibraryItem }>("/api/product-library", {
+      method: "POST",
+      body: data,
+    }),
+
+  update: (
+    id: string,
+    data: Partial<{
+      name: string;
+      productType: ProductLibraryItem["productType"];
+      revenueLane?: Exclude<ProductLibraryItem["revenueLane"], null>;
+      description?: string;
+      targetAudience?: string;
+      painPoints?: string;
+      benefits?: string;
+      keywords?: string;
+      tags?: string;
+      offer?: string;
+      cta?: string;
+      priceRange?: string;
+      productUrl?: string;
+      coverImageUrl?: string;
+      promotionPriority: number;
+      status: ProductLibraryItem["status"];
+    }>,
+  ) =>
+    api<{ item: ProductLibraryItem }>(`/api/product-library/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
+
+  delete: (id: string) =>
+    api<{ ok: true }>(`/api/product-library/${id}`, {
       method: "DELETE",
     }),
 };
