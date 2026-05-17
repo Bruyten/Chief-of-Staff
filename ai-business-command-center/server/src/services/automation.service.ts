@@ -237,45 +237,19 @@ export async function updateAutomation(
       id: existing.id,
     },
     data: {
-      ...(input.name !== undefined
-        ? {
-            name: input.name,
-          }
-        : {}),
-      ...(input.enabled !== undefined
-        ? {
-            enabled: input.enabled,
-          }
-        : {}),
-      ...(input.timezone !== undefined
-        ? {
-            timezone: input.timezone,
-          }
-        : {}),
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
       ...(input.dayOfWeek !== undefined
-        ? {
-            dayOfWeek: input.dayOfWeek,
-          }
+        ? { dayOfWeek: input.dayOfWeek }
         : {}),
       ...(input.dayOfMonth !== undefined
-        ? {
-            dayOfMonth: input.dayOfMonth,
-          }
+        ? { dayOfMonth: input.dayOfMonth }
         : {}),
-      ...(input.hour !== undefined
-        ? {
-            hour: input.hour,
-          }
-        : {}),
-      ...(input.minute !== undefined
-        ? {
-            minute: input.minute,
-          }
-        : {}),
+      ...(input.hour !== undefined ? { hour: input.hour } : {}),
+      ...(input.minute !== undefined ? { minute: input.minute } : {}),
       ...(input.config !== undefined
-        ? {
-            config: input.config as object,
-          }
+        ? { config: input.config as object }
         : {}),
       nextRunAt,
     },
@@ -376,70 +350,6 @@ export async function queueAutomationRunNow(
       creditsRequired: meta.creditsRequired,
     },
   });
-}
-
-export async function claimDueAutomations(limit: number) {
-  const now = new Date();
-  const lockUntil = new Date(now.getTime() + 20 * 60 * 1000);
-
-  const candidates = await prisma.automation.findMany({
-    where: {
-      enabled: true,
-      nextRunAt: {
-        lte: now,
-      },
-      OR: [
-        {
-          lockedUntil: null,
-        },
-        {
-          lockedUntil: {
-            lt: now,
-          },
-        },
-      ],
-    },
-    orderBy: {
-      nextRunAt: "asc",
-    },
-    take: limit,
-    select: {
-      id: true,
-    },
-  });
-
-  const claimedIds: string[] = [];
-
-  for (const candidate of candidates) {
-    const claimed = await prisma.automation.updateMany({
-      where: {
-        id: candidate.id,
-        enabled: true,
-        nextRunAt: {
-          lte: now,
-        },
-        OR: [
-          {
-            lockedUntil: null,
-          },
-          {
-            lockedUntil: {
-              lt: now,
-            },
-          },
-        ],
-      },
-      data: {
-        lockedUntil: lockUntil,
-      },
-    });
-
-    if (claimed.count === 1) {
-      claimedIds.push(candidate.id);
-    }
-  }
-
-  return claimedIds;
 }
 
 async function completeAutomationMetadata(input: {
@@ -552,14 +462,19 @@ export async function executeAutomation(
   try {
     if (
       automation.type === "weekly_content_plan" ||
-      automation.type === "daily_trend_research"
+      automation.type === "daily_trend_research" ||
+      automation.type === "daily_product_opportunity_engine"
     ) {
+      const templateId =
+        automation.type === "weekly_content_plan"
+          ? "weekly_content"
+          : automation.type === "daily_product_opportunity_engine"
+            ? "daily_product_opportunity_engine"
+            : "daily_trend_research";
+
       const workflowRun = await createWorkflowRun({
         userId: automation.userId,
-        templateId:
-          automation.type === "daily_trend_research"
-            ? "daily_trend_research"
-            : "weekly_content",
+        templateId,
         title: automation.name,
         projectId: automation.projectId,
         brandVoiceProfileId: automation.brandVoiceProfileId,
@@ -670,14 +585,25 @@ export async function executeAutomation(
 }
 
 export async function runDueAutomations(limit = 10) {
-  const claimedIds = await claimDueAutomations(limit);
+  const claimedIds = await prisma.automation.findMany({
+    where: {
+      enabled: true,
+      nextRunAt: {
+        lte: new Date(),
+      },
+    },
+    take: limit,
+    select: {
+      id: true,
+    },
+  });
 
-  for (const automationId of claimedIds) {
-    await executeAutomation(automationId, "scheduled");
+  for (const automation of claimedIds) {
+    await executeAutomation(automation.id, "scheduled");
   }
 
   return {
     claimed: claimedIds.length,
-    automationIds: claimedIds,
+    automationIds: claimedIds.map((item) => item.id),
   };
 }
